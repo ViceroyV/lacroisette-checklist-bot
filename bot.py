@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 
-API_TOKEN = "7592595424:AAF1qsZZOxFrxreeTic6O-MxFKQnUaFAr_0"  # ← сюда вставь свой токен
+API_TOKEN = "8253153053:AAF4nQtcs_7W8AkX8qgYA8dNDIBo5v2NFB4"  # ← сюда вставь свой токен
 ADMIN_ID = 1170665353           # ← сюда вставь свой Telegram ID
 PASSWORD = "checklist2025"
 
@@ -337,4 +337,5 @@ async def main():
     await dp.start_polling(bot)
 
 if _name_ == "_main_":
+
     asyncio.run(main())
