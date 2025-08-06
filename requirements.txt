@@ -1,2 +1,2 @@
 aiogram==3.3.0
-PyTelegramBotAPI==8253153053:AAF4nQtcs_7W8AkX8qgYA8dNDIBo5v2NFB4
+PyTelegramBotAPI
