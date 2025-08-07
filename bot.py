@@ -335,6 +335,7 @@ async def main():
     dp.message.register(message_handler)
     dp.callback_query.register(callback_handler)
 
+    print("✅ Bot is starting...")
     await dp.start_polling(bot)
 
 if __name__ == "_main_":
