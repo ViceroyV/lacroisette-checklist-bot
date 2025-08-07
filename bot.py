@@ -329,6 +329,7 @@ async def finish_checklist(message, user_id):
 async def main():
     bot = Bot(token=API_TOKEN)
     dp = Dispatcher()
+    
 
     dp.message.register(start_handler, Command("start"))
     dp.message.register(message_handler)
@@ -336,5 +337,5 @@ async def main():
 
     await dp.start_polling(bot)
 
-if __name__ == "_main_":
+if _name_ == "_main_":
     asyncio.run(main())
