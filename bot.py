@@ -23,7 +23,7 @@ BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 
 # Настройки для Render
 WEB_SERVER_HOST = "0.0.0.0"
-WEB_SERVER_PORT = int(os.getenv("PORT", 10000))  # Фикс порта для Render
+WEB_SERVER_PORT = int(os.getenv("PORT", 10000))
 WEBHOOK_PATH = "/webhook"
 BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", os.getenv("WEBHOOK_URL", ""))
 
@@ -32,6 +32,10 @@ if not TELEGRAM_TOKEN:
     logger.critical("❌ TELEGRAM_TOKEN environment variable is required!")
     exit(1)
 
+# Извлекаем API ключ из токена
+API_KEY = TELEGRAM_TOKEN.split(':')[1]
+SECRET_TOKEN = API_KEY[:32]  # Используем первые 32 символа API ключа
+
 # Диагностика
 logger.info("===== BOT CONFIGURATION =====")
 logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
@@ -39,6 +43,7 @@ logger.info(f"ADMIN_ID: {ADMIN_ID}")
 logger.info(f"BOT_PASSWORD: {'set' if BOT_PASSWORD else 'NOT SET!'}")
 logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
 logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
+logger.info(f"SECRET_TOKEN: {SECRET_TOKEN}")
 logger.info("=============================")
 
 # ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
@@ -289,12 +294,11 @@ async def start_handler(message: types.Message):
     try:
         logger.info(f"Received /start from {message.from_user.id} (chat: {message.chat.id})")
         
-        # Фикс: сбрасываем сессию при каждом /start
+        # Сбрасываем сессию при каждом /start
         user_id = message.from_user.id
         if user_id in user_sessions:
             del user_sessions[user_id]
             
-        # Тестовый ответ для диагностики
         await message.answer("🚀 Бот активирован! Введите пароль:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
@@ -433,27 +437,27 @@ async def on_startup(bot: Bot):
     try:
         logger.info("Running startup actions...")
         
-        # Фикс: принудительное удаление старого вебхука
+        # Удаляем старый вебхук
         await bot.delete_webhook()
         logger.info("Old webhook removed")
         
         if BASE_WEBHOOK_URL:
             webhook_url = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
-            secret_token = TELEGRAM_TOKEN[:32]  # Используем первые 32 символа как секрет
             
+            # Используем глобально определенный SECRET_TOKEN
             await bot.set_webhook(
                 url=webhook_url,
                 drop_pending_updates=True,
-                secret_token=secret_token
+                secret_token=SECRET_TOKEN
             )
             logger.info(f"Webhook set to: {webhook_url}")
-            logger.info(f"Secret token: {secret_token}")
+            logger.info(f"Secret token: {SECRET_TOKEN}")
             
             # Проверка установки вебхука
             webhook_info = await bot.get_webhook_info()
             logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
             
-            # Фикс: дополнительная диагностика
+            # Дополнительная диагностика
             if webhook_info.url != webhook_url:
                 logger.error(f"Webhook mismatch! Expected: {webhook_url}, Actual: {webhook_info.url}")
             else:
@@ -472,7 +476,7 @@ def main():
     try:
         logger.info(f"Environment: PORT={os.getenv('PORT')}, RENDER_EXTERNAL_URL={os.getenv('RENDER_EXTERNAL_URL')}")
         
-        # ФИКС ДЛЯ AIOGRAM 3.7.0+
+        # Создаем бота с HTML-разметкой по умолчанию
         bot = Bot(
             TELEGRAM_TOKEN, 
             default=DefaultBotProperties(parse_mode="HTML")
@@ -496,18 +500,17 @@ def main():
         app.router.add_get("/", health_check)
         app.router.add_get("/health", health_check)
         
-        # Фикс: улучшенный обработчик вебхука
+        # Обработчик вебхука
         async def webhook_handler(request: web.Request) -> web.Response:
             try:
-                # Логирование входящего запроса
                 logger.info(f"Incoming webhook request to: {request.path}")
                 
                 # Проверка секретного токена
                 secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-                expected_token = TELEGRAM_TOKEN[:32]
                 
-                if secret_token != expected_token:
-                    logger.warning(f"Invalid secret token! Expected: {expected_token}, Got: {secret_token}")
+                # Используем глобально определенный SECRET_TOKEN
+                if secret_token != SECRET_TOKEN:
+                    logger.warning(f"Invalid secret token! Expected: {SECRET_TOKEN}, Got: {secret_token}")
                     return web.Response(status=403, text="Forbidden")
                 
                 # Обработка обновления
@@ -541,7 +544,7 @@ def main():
             app,
             host=WEB_SERVER_HOST,
             port=WEB_SERVER_PORT,
-            access_log=None  # Отключаем стандартное логирование aiohttp
+            access_log=None
         )
     except Exception as e:
         logger.critical(f"Fatal error in main: {e}\n{traceback.format_exc()}")
