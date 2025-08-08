@@ -24,6 +24,18 @@ WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
 WEBHOOK_PATH = "/webhook"
 BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
+# Автоматическое определение BASE_WEBHOOK_URL
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "")
+if RENDER_EXTERNAL_URL:
+    BASE_WEBHOOK_URL = RENDER_EXTERNAL_URL
+    logger.info(f"Using RENDER_EXTERNAL_URL: {BASE_WEBHOOK_URL}")
+else:
+    BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    if BASE_WEBHOOK_URL:
+        logger.info(f"Using WEBHOOK_URL: {BASE_WEBHOOK_URL}")
+    else:
+        logger.warning("Neither WEBHOOK_URL nor RENDER_EXTERNAL_URL set!")
+
 # ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
 checklists = {
     "Bartender": {
@@ -384,8 +396,6 @@ if __name__ == "__main__":
         logger.error("Missing required environment variable: TELEGRAM_TOKEN")
         exit(1)
         
-    if not BASE_WEBHOOK_URL:
-        logger.warning("WEBHOOK_URL not set, webhook won't be configured")
-        
     logger.info("Starting bot...")
     main()
+        
