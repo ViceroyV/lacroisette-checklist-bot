@@ -255,6 +255,7 @@ checklists = {
         ]
     }
 }
+
 # === Логика бота ===
 user_sessions = {}
 
@@ -262,16 +263,74 @@ async def start_handler(message: types.Message):
     await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
 
 async def message_handler(message: types.Message):
-    # ... [весь ваш обработчик сообщений] ...
+    user_id = message.from_user.id
+    text = message.text.strip()
+
+    if user_id not in user_sessions:
+        if text == PASSWORD:
+            user_sessions[user_id] = {"step": "name"}
+            await message.answer("Password correct ✅\nPlease enter your name:")
+        else:
+            await message.answer("Incorrect password. Try again.")
+        return
+
+    if user_sessions[user_id]["step"] == "name":
+        user_sessions[user_id]["name"] = text
+        user_sessions[user_id]["step"] = "role"
+        keyboard = InlineKeyboardMarkup()
+        for role in checklists.keys():
+            keyboard.add(InlineKeyboardButton(text=role, callback_data=f"role:{role}"))
+        await message.answer("Select your role:", reply_markup=keyboard)
 
 async def callback_handler(callback: types.CallbackQuery):
-    # ... [весь ваш обработчик колбэков] ...
+    user_id = callback.from_user.id
+    data = callback.data
+
+    if data.startswith("role:"):
+        role = data.split(":")[1]
+        user_sessions[user_id]["role"] = role
+        user_sessions[user_id]["step"] = "checklist"
+        keyboard = InlineKeyboardMarkup()
+        for cl_name in checklists[role].keys():
+            keyboard.add(InlineKeyboardButton(text=cl_name, callback_data=f"checklist:{cl_name}"))
+        await callback.message.answer(f"Select checklist for {role}:", reply_markup=keyboard)
+
+    elif data.startswith("checklist:"):
+        cl_name = data.split(":")[1]
+        role = user_sessions[user_id]["role"]
+        tasks = checklists[role][cl_name]
+        user_sessions[user_id]["tasks"] = tasks
+        user_sessions[user_id]["current_task"] = 0
+        user_sessions[user_id]["results"] = []
+        await send_task(callback.message, user_id)
+
+    elif data.startswith("task:"):
+        result = data.split(":")[1]
+        session = user_sessions[user_id]
+        session["results"].append((session["tasks"][session["current_task"]], result))
+        session["current_task"] += 1
+        if session["current_task"] < len(session["tasks"]):
+            await send_task(callback.message, user_id)
+        else:
+            await finish_checklist(callback.message, user_id)
 
 async def send_task(message, user_id):
-    # ... [ваш код отправки задачи] ...
+    session = user_sessions[user_id]
+    task_text = session["tasks"][session["current_task"]]
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("✅ Done", callback_data="task:Done"),
+        InlineKeyboardButton("❌ Not Done", callback_data="task:Not Done")
+    )
+    await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
 
 async def finish_checklist(message, user_id):
-    # ... [ваш код завершения чек-листа] ...
+    session = user_sessions[user_id]
+    report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
+    for task, result in session["results"]:
+        report += f"- {task} → {result}\n"
+    await message.answer("Checklist completed ✅ Report sent to manager.")
+    await message.bot.send_message(ADMIN_ID, report)
 
 async def main():
     bot = Bot(token=API_TOKEN)
