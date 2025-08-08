@@ -1,23 +1,31 @@
-import logging
-import asyncio
 import os
+import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
+from aiogram.webhook.aiohttp_server import setup_application, SimpleRequestHandler
+from aiohttp import web
+import ssl
 
-# Получаем данные из переменных окружения
-API_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
-PASSWORD = os.getenv("BOT_PASSWORD")
+# ========== КОНФИГУРАЦИЯ ==========
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Проверка наличия обязательных переменных
-if not all([API_TOKEN, ADMIN_ID, PASSWORD]):
-    missing = [var for var in ["TELEGRAM_TOKEN", "ADMIN_ID", "BOT_PASSWORD"] if not os.getenv(var)]
-    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
+# Получаем переменные окружения
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 
-logging.basicConfig(level=logging.INFO)
+# Render-specific settings
+WEB_SERVER_HOST = "0.0.0.0"
+WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
+WEBHOOK_PATH = "/webhook"
+BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Должен быть задан в Render!
 
-# === Все чек-листы ===
+# ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
 checklists = {
     "Bartender": {
         "Opening Shift": [
@@ -256,9 +264,10 @@ checklists = {
     }
 }
 
-# === Логика бота ===
+# ========== СОСТОЯНИЕ БОТА ==========
 user_sessions = {}
 
+# ========== ОБРАБОТЧИКИ СООБЩЕНИЙ ==========
 async def start_handler(message: types.Message):
     await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
 
@@ -267,7 +276,7 @@ async def message_handler(message: types.Message):
     text = message.text.strip()
 
     if user_id not in user_sessions:
-        if text == PASSWORD:
+        if text == BOT_PASSWORD:
             user_sessions[user_id] = {"step": "name"}
             await message.answer("Password correct ✅\nPlease enter your name:")
         else:
@@ -332,16 +341,47 @@ async def finish_checklist(message, user_id):
     await message.answer("Checklist completed ✅ Report sent to manager.")
     await message.bot.send_message(ADMIN_ID, report)
 
-async def main():
-    bot = Bot(token=API_TOKEN)
+# ========== WEBHOOK НАСТРОЙКИ ==========
+async def on_startup(bot: Bot) -> None:
+    # Установка вебхука
+    await bot.set_webhook(f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
+    logger.info(f"Webhook set to {BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
+
+async def health_check(request: web.Request) -> web.Response:
+    """Эндпоинт для проверки здоровья приложения"""
+    return web.Response(text="Bot is running")
+
+# ========== ЗАПУСК ПРИЛОЖЕНИЯ ==========
+def main() -> None:
+    # Инициализация бота и диспетчера
+    bot = Bot(TELEGRAM_TOKEN)
     dp = Dispatcher()
     
+    # Регистрация обработчиков
     dp.message.register(start_handler, Command("start"))
     dp.message.register(message_handler)
     dp.callback_query.register(callback_handler)
-
-    logging.info("✅ Bot is starting...")
-    await dp.start_polling(bot)
+    
+    # Регистрация обработчика запуска
+    dp.startup.register(on_startup)
+    
+    # Создание aiohttp приложения
+    app = web.Application()
+    app["bot"] = bot
+    
+    # Регистрация эндпоинтов
+    app.router.add_get("/health", health_check)
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    
+    # Запуск приложения
+    logger.info(f"Starting server on {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
+    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Проверка обязательных переменных
+    if not TELEGRAM_TOKEN or not BASE_WEBHOOK_URL:
+        logger.error("Missing required environment variables: TELEGRAM_TOKEN or WEBHOOK_URL")
+        exit(1)
+        
+    logger.info("Starting bot...")
+    main()
