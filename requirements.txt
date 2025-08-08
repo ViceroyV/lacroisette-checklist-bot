@@ -1,3 +1,2 @@
 aiogram==3.13.1
 aiohttp==3.9.5
-certifi==2024.6.2
