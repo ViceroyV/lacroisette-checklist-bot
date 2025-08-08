@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+from aiogram.client.default import DefaultBotProperties
 from aiohttp import web
 
 # ========== НАСТРОЙКА ЛОГГИРОВАНИЯ ==========
@@ -412,8 +413,7 @@ async def finish_checklist(message, user_id):
             # Отправляем отчет администратору
             await message.bot.send_message(
                 ADMIN_ID, 
-                report, 
-                parse_mode="Markdown"
+                report
             )
             logger.info(f"Report sent to admin {ADMIN_ID}")
         except Exception as e:
@@ -472,8 +472,12 @@ def main():
     try:
         logger.info(f"Environment: PORT={os.getenv('PORT')}, RENDER_EXTERNAL_URL={os.getenv('RENDER_EXTERNAL_URL')}")
         
-        # Фикс: создаем бота с parse_mode по умолчанию
-        bot = Bot(TELEGRAM_TOKEN, parse_mode="HTML")
+        # ФИКС ДЛЯ AIOGRAM 3.7.0+
+        bot = Bot(
+            TELEGRAM_TOKEN, 
+            default=DefaultBotProperties(parse_mode="HTML")
+        )
+        
         dp = Dispatcher()
         
         # Регистрация обработчиков
