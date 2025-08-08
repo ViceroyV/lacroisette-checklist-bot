@@ -1,20 +1,21 @@
 import os
 import logging
 import traceback
+import json
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiohttp import web
 
-# ========== КОНФИГУРАЦИЯ ==========
+# ========== НАСТРОЙКА ЛОГГИРОВАНИЯ ==========
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Получаем переменные окружения
+# ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
@@ -25,14 +26,19 @@ WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
 WEBHOOK_PATH = "/webhook"
 BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", os.getenv("WEBHOOK_URL", ""))
 
+# Проверка обязательных параметров
+if not TELEGRAM_TOKEN:
+    logger.critical("❌ TELEGRAM_TOKEN environment variable is required!")
+    exit(1)
+
 # Диагностика
-logger.info("===== CONFIGURATION =====")
+logger.info("===== BOT CONFIGURATION =====")
 logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
 logger.info(f"ADMIN_ID: {ADMIN_ID}")
 logger.info(f"BOT_PASSWORD: {'set' if BOT_PASSWORD else 'NOT SET!'}")
 logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
 logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
-logger.info("=========================")
+logger.info("=============================")
 
 # ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
 checklists = {
@@ -284,6 +290,7 @@ async def start_handler(message: types.Message):
         await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Bot error. Please try again later.")
 
 async def message_handler(message: types.Message):
     """Обработчик текстовых сообщений"""
@@ -309,11 +316,14 @@ async def message_handler(message: types.Message):
             await message.answer("Select your role:", reply_markup=keyboard)
     except Exception as e:
         logger.error(f"Error in message_handler: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Error processing your message. Please try /start again.")
 
 async def callback_handler(callback: types.CallbackQuery):
     """Обработчик callback-запросов"""
     try:
         logger.info(f"Callback from {callback.from_user.id}: {callback.data}")
+        await callback.answer()  # Подтверждаем получение callback
+        
         user_id = callback.from_user.id
         data = callback.data
 
@@ -361,6 +371,7 @@ async def send_task(message, user_id):
         await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
     except Exception as e:
         logger.error(f"Error in send_task: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Error loading tasks. Please try again later.")
 
 async def finish_checklist(message, user_id):
     """Завершение чек-листа и отправка отчета"""
@@ -369,14 +380,21 @@ async def finish_checklist(message, user_id):
         report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
         for task, result in session["results"]:
             report += f"- {task} → {result}\n"
+        
         await message.answer("Checklist completed ✅ Report sent to manager.")
         try:
             await message.bot.send_message(ADMIN_ID, report)
             logger.info(f"Report sent to admin {ADMIN_ID}")
         except Exception as e:
             logger.error(f"Error sending report: {e}\n{traceback.format_exc()}")
+            await message.answer("⚠️ Could not send report to manager. Please notify admin directly.")
+        
+        # Очистка сессии
+        if user_id in user_sessions:
+            del user_sessions[user_id]
     except Exception as e:
         logger.error(f"Error in finish_checklist: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Error completing checklist. Please contact support.")
 
 # ========== WEBHOOK НАСТРОЙКИ ==========
 async def on_startup(bot: Bot):
@@ -404,10 +422,6 @@ async def health_check(request: web.Request) -> web.Response:
 # ========== ЗАПУСК СЕРВЕРА ==========
 def main():
     try:
-        if not TELEGRAM_TOKEN:
-            logger.error("❌ TELEGRAM_TOKEN environment variable is required!")
-            return
-        
         bot = Bot(TELEGRAM_TOKEN)
         dp = Dispatcher()
         
@@ -427,12 +441,12 @@ def main():
         app.router.add_get("/", health_check)
         app.router.add_get("/health", health_check)
         
-        # Регистрация обработчика вебхука с обработкой ошибок
+        # Регистрация обработчика вебхука
         async def webhook_handler(request: web.Request) -> web.Response:
             try:
-                # Логирование тела запроса для отладки
-                body = await request.text()
-                logger.debug(f"Incoming update: {body}")
+                # Логирование входящего запроса
+                update_data = await request.json()
+                logger.debug(f"Incoming update: {json.dumps(update_data, indent=2)}")
                 
                 handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
                 response = await handler.handle(request)
@@ -469,5 +483,5 @@ def main():
         logger.critical(f"Fatal error in main: {e}\n{traceback.format_exc()}")
 
 if __name__ == "__main__":
-    logger.info("===== STARTING BOT =====")
+    logger.info("===== STARTING BOT APPLICATION =====")
     main()
