@@ -1,12 +1,19 @@
 import logging
 import asyncio
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 
-API_TOKEN = "8253153053:AAF4nQtcs_7W8AkX8qgYA8dNDIBo5v2NFB4"  # ← сюда вставь свой токен
-ADMIN_ID = 1170665353           # ← сюда вставь свой Telegram ID
-PASSWORD = "checklist2025"
+# Получаем данные из переменных окружения
+API_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+PASSWORD = os.getenv("BOT_PASSWORD")
+
+# Проверка наличия обязательных переменных
+if not all([API_TOKEN, ADMIN_ID, PASSWORD]):
+    missing = [var for var in ["TELEGRAM_TOKEN", "ADMIN_ID", "BOT_PASSWORD"] if not os.getenv(var)]
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -248,7 +255,6 @@ checklists = {
         ]
     }
 }
-
 # === Логика бота ===
 user_sessions = {}
 
@@ -256,86 +262,26 @@ async def start_handler(message: types.Message):
     await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
 
 async def message_handler(message: types.Message):
-    user_id = message.from_user.id
-    text = message.text.strip()
-
-    if user_id not in user_sessions:
-        if text == PASSWORD:
-            user_sessions[user_id] = {"step": "name"}
-            await message.answer("Password correct ✅\nPlease enter your name:")
-        else:
-            await message.answer("Incorrect password. Try again.")
-        return
-
-    if user_sessions[user_id]["step"] == "name":
-        user_sessions[user_id]["name"] = text
-        user_sessions[user_id]["step"] = "role"
-        keyboard = InlineKeyboardMarkup()
-        for role in checklists.keys():
-            keyboard.add(InlineKeyboardButton(text=role, callback_data=f"role:{role}"))
-        await message.answer("Select your role:", reply_markup=keyboard)
-        return
+    # ... [весь ваш обработчик сообщений] ...
 
 async def callback_handler(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    data = callback.data
-
-    if data.startswith("role:"):
-        role = data.split(":")[1]
-        user_sessions[user_id]["role"] = role
-        user_sessions[user_id]["step"] = "checklist"
-        keyboard = InlineKeyboardMarkup()
-        for cl_name in checklists[role].keys():
-            keyboard.add(InlineKeyboardButton(text=cl_name, callback_data=f"checklist:{cl_name}"))
-        await callback.message.answer(f"Select checklist for {role}:", reply_markup=keyboard)
-
-    elif data.startswith("checklist:"):
-        cl_name = data.split(":")[1]
-        role = user_sessions[user_id]["role"]
-        tasks = checklists[role][cl_name]
-        user_sessions[user_id]["tasks"] = tasks
-        user_sessions[user_id]["current_task"] = 0
-        user_sessions[user_id]["results"] = []
-        await send_task(callback.message, user_id)
-
-    elif data.startswith("task:"):
-        result = data.split(":")[1]
-        session = user_sessions[user_id]
-        session["results"].append((session["tasks"][session["current_task"]], result))
-        session["current_task"] += 1
-        if session["current_task"] < len(session["tasks"]):
-            await send_task(callback.message, user_id)
-        else:
-            await finish_checklist(callback.message, user_id)
+    # ... [весь ваш обработчик колбэков] ...
 
 async def send_task(message, user_id):
-    session = user_sessions[user_id]
-    task_text = session["tasks"][session["current_task"]]
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("✅ Done", callback_data="task:Done"),
-        InlineKeyboardButton("❌ Not Done", callback_data="task:Not Done")
-    )
-    await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
+    # ... [ваш код отправки задачи] ...
 
 async def finish_checklist(message, user_id):
-    session = user_sessions[user_id]
-    report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
-    for task, result in session["results"]:
-        report += f"- {task} → {result}\n"
-    await message.answer("Checklist completed ✅ Report sent to manager.")
-    await message.bot.send_message(ADMIN_ID, report)
+    # ... [ваш код завершения чек-листа] ...
 
 async def main():
     bot = Bot(token=API_TOKEN)
     dp = Dispatcher()
     
-
     dp.message.register(start_handler, Command("start"))
     dp.message.register(message_handler)
     dp.callback_query.register(callback_handler)
 
-    print("✅ Bot is starting...")
+    logging.info("✅ Bot is starting...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
