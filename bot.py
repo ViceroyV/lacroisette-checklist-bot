@@ -20,9 +20,9 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 
-# Настройки для Render
+# Настройки для Render - ОБНОВЛЕНО ДЛЯ RENDER
 WEB_SERVER_HOST = "0.0.0.0"
-WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
+WEB_SERVER_PORT = int(os.getenv("PORT", 10000))  # ПОРТ ПО УМОЛЧАНИЮ 10000
 WEBHOOK_PATH = "/webhook"
 BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", os.getenv("WEBHOOK_URL", ""))
 
@@ -286,7 +286,8 @@ user_sessions = {}
 async def start_handler(message: types.Message):
     """Обработчик команды /start"""
     try:
-        logger.info(f"Received /start from {message.from_user.id}")
+        # ДИАГНОСТИКА: Подробное логирование
+        logger.info(f"Received /start from {message.from_user.id} (chat: {message.chat.id})")
         await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
@@ -407,9 +408,15 @@ async def on_startup(bot: Bot):
             await bot.set_webhook(webhook_url)
             logger.info(f"Webhook set to: {webhook_url}")
             
-            # Проверка установки вебхука
+            # Проверка установки вебхука - ДОБАВЛЕНО ДЛЯ ДИАГНОСТИКИ
             webhook_info = await bot.get_webhook_info()
-            logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
+            logger.info(f"Webhook info: URL={webhook_info.url}, Pending={webhook_info.pending_update_count}")
+            
+            if webhook_info.url != webhook_url:
+                logger.error("Webhook URL mismatch! Actual: %s, Expected: %s", 
+                            webhook_info.url, webhook_url)
+            else:
+                logger.info("Webhook verified successfully")
         else:
             logger.warning("Skipping webhook setup: BASE_WEBHOOK_URL not set")
     except Exception as e:
@@ -422,6 +429,9 @@ async def health_check(request: web.Request) -> web.Response:
 # ========== ЗАПУСК СЕРВЕРА ==========
 def main():
     try:
+        # Дополнительная диагностика переменных окружения
+        logger.info(f"Environment variables: PORT={os.getenv('PORT')}, RENDER_EXTERNAL_URL={os.getenv('RENDER_EXTERNAL_URL')}")
+        
         bot = Bot(TELEGRAM_TOKEN)
         dp = Dispatcher()
         
@@ -441,18 +451,35 @@ def main():
         app.router.add_get("/", health_check)
         app.router.add_get("/health", health_check)
         
-        # Регистрация обработчика вебхука
+        # Регистрация обработчика вебхука - УЛУЧШЕННАЯ ОБРАБОТКА
         async def webhook_handler(request: web.Request) -> web.Response:
             try:
                 # Логирование входящего запроса
-                update_data = await request.json()
-                logger.debug(f"Incoming update: {json.dumps(update_data, indent=2)}")
+                logger.info(f"Incoming request to webhook: {request.method} {request.path}")
                 
+                # Проверка типа контента
+                content_type = request.headers.get('Content-Type', '')
+                if 'application/json' not in content_type:
+                    logger.warning("Invalid content type: %s", content_type)
+                    return web.Response(status=400, text="Invalid content type")
+                
+                # Чтение и логирование тела запроса
+                body = await request.text()
+                logger.debug(f"Received webhook body: {body}")
+                
+                # Парсинг JSON
+                try:
+                    update_data = json.loads(body)
+                except json.JSONDecodeError:
+                    logger.error("Invalid JSON received")
+                    return web.Response(status=400, text="Invalid JSON")
+                
+                # Обработка обновления
                 handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
                 response = await handler.handle(request)
                 return response
             except Exception as e:
-                logger.error(f"Error in webhook handler: {e}\n{traceback.format_exc()}")
+                logger.error(f"Unhandled exception in webhook handler: {e}\n{traceback.format_exc()}")
                 return web.Response(status=500, text="Internal Server Error")
         
         app.router.add_post(WEBHOOK_PATH, webhook_handler)
@@ -472,7 +499,7 @@ def main():
         app.middlewares.append(log_middleware)
         
         # Запуск сервера
-        logger.info(f"Starting server on port {WEB_SERVER_PORT}")
+        logger.info(f"🚀 Starting server on {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
         web.run_app(
             app,
             host=WEB_SERVER_HOST,
