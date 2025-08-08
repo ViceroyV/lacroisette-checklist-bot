@@ -5,7 +5,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import setup_application, SimpleRequestHandler
 from aiohttp import web
-import ssl
 
 # ========== КОНФИГУРАЦИЯ ==========
 logging.basicConfig(
@@ -23,7 +22,7 @@ BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
 WEBHOOK_PATH = "/webhook"
-BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Должен быть задан в Render!
+BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
 checklists = {
@@ -344,8 +343,9 @@ async def finish_checklist(message, user_id):
 # ========== WEBHOOK НАСТРОЙКИ ==========
 async def on_startup(bot: Bot) -> None:
     # Установка вебхука
-    await bot.set_webhook(f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
-    logger.info(f"Webhook set to {BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
+    if BASE_WEBHOOK_URL:
+        await bot.set_webhook(f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
+        logger.info(f"Webhook set to {BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
 
 async def health_check(request: web.Request) -> web.Response:
     """Эндпоинт для проверки здоровья приложения"""
@@ -371,17 +371,21 @@ def main() -> None:
     
     # Регистрация эндпоинтов
     app.router.add_get("/health", health_check)
+    app.router.add_get("/", health_check)  # Добавлен корневой эндпоинт
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     
     # Запуск приложения
-    logger.info(f"Starting server on {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
+    logger.info(f"Starting server on port {WEB_SERVER_PORT}")
     web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
 
 if __name__ == "__main__":
     # Проверка обязательных переменных
-    if not TELEGRAM_TOKEN or not BASE_WEBHOOK_URL:
-        logger.error("Missing required environment variables: TELEGRAM_TOKEN or WEBHOOK_URL")
+    if not TELEGRAM_TOKEN:
+        logger.error("Missing required environment variable: TELEGRAM_TOKEN")
         exit(1)
+        
+    if not BASE_WEBHOOK_URL:
+        logger.warning("WEBHOOK_URL not set, webhook won't be configured")
         
     logger.info("Starting bot...")
     main()
