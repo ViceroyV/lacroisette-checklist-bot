@@ -1,6 +1,7 @@
 import os
 import logging
-from aiogram import Bot, Dispatcher, types, F
+import traceback
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
@@ -278,111 +279,123 @@ user_sessions = {}
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 async def start_handler(message: types.Message):
     """Обработчик команды /start"""
-    logger.info(f"Received /start from {message.from_user.id}")
     try:
+        logger.info(f"Received /start from {message.from_user.id}")
         await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
-        logger.info("Start message sent")
     except Exception as e:
-        logger.error(f"Error sending start message: {str(e)}")
+        logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
 
 async def message_handler(message: types.Message):
     """Обработчик текстовых сообщений"""
-    logger.info(f"Message from {message.from_user.id}: {message.text[:50]}")
-    user_id = message.from_user.id
-    text = message.text.strip()
+    try:
+        logger.info(f"Message from {message.from_user.id}: {message.text[:50]}")
+        user_id = message.from_user.id
+        text = message.text.strip()
 
-    if user_id not in user_sessions:
-        if text == BOT_PASSWORD:
-            user_sessions[user_id] = {"step": "name"}
-            await message.answer("Password correct ✅\nPlease enter your name:")
-        else:
-            await message.answer("Incorrect password. Try again.")
-        return
+        if user_id not in user_sessions:
+            if text == BOT_PASSWORD:
+                user_sessions[user_id] = {"step": "name"}
+                await message.answer("Password correct ✅\nPlease enter your name:")
+            else:
+                await message.answer("Incorrect password. Try again.")
+            return
 
-    if user_sessions[user_id]["step"] == "name":
-        user_sessions[user_id]["name"] = text
-        user_sessions[user_id]["step"] = "role"
-        keyboard = InlineKeyboardMarkup()
-        for role in checklists.keys():
-            keyboard.add(InlineKeyboardButton(text=role, callback_data=f"role:{role}"))
-        await message.answer("Select your role:", reply_markup=keyboard)
+        if user_sessions[user_id]["step"] == "name":
+            user_sessions[user_id]["name"] = text
+            user_sessions[user_id]["step"] = "role"
+            keyboard = InlineKeyboardMarkup()
+            for role in checklists.keys():
+                keyboard.add(InlineKeyboardButton(text=role, callback_data=f"role:{role}"))
+            await message.answer("Select your role:", reply_markup=keyboard)
+    except Exception as e:
+        logger.error(f"Error in message_handler: {e}\n{traceback.format_exc()}")
 
 async def callback_handler(callback: types.CallbackQuery):
     """Обработчик callback-запросов"""
-    logger.info(f"Callback from {callback.from_user.id}: {callback.data}")
-    user_id = callback.from_user.id
-    data = callback.data
+    try:
+        logger.info(f"Callback from {callback.from_user.id}: {callback.data}")
+        user_id = callback.from_user.id
+        data = callback.data
 
-    if data.startswith("role:"):
-        role = data.split(":")[1]
-        user_sessions[user_id]["role"] = role
-        user_sessions[user_id]["step"] = "checklist"
-        keyboard = InlineKeyboardMarkup()
-        for cl_name in checklists[role].keys():
-            keyboard.add(InlineKeyboardButton(text=cl_name, callback_data=f"checklist:{cl_name}"))
-        await callback.message.answer(f"Select checklist for {role}:", reply_markup=keyboard)
+        if data.startswith("role:"):
+            role = data.split(":")[1]
+            user_sessions[user_id]["role"] = role
+            user_sessions[user_id]["step"] = "checklist"
+            keyboard = InlineKeyboardMarkup()
+            for cl_name in checklists[role].keys():
+                keyboard.add(InlineKeyboardButton(text=cl_name, callback_data=f"checklist:{cl_name}"))
+            await callback.message.answer(f"Select checklist for {role}:", reply_markup=keyboard)
 
-    elif data.startswith("checklist:"):
-        cl_name = data.split(":")[1]
-        role = user_sessions[user_id]["role"]
-        tasks = checklists[role][cl_name]
-        user_sessions[user_id]["tasks"] = tasks
-        user_sessions[user_id]["current_task"] = 0
-        user_sessions[user_id]["results"] = []
-        await send_task(callback.message, user_id)
-
-    elif data.startswith("task:"):
-        result = data.split(":")[1]
-        session = user_sessions[user_id]
-        session["results"].append((session["tasks"][session["current_task"]], result))
-        session["current_task"] += 1
-        if session["current_task"] < len(session["tasks"]):
+        elif data.startswith("checklist:"):
+            cl_name = data.split(":")[1]
+            role = user_sessions[user_id]["role"]
+            tasks = checklists[role][cl_name]
+            user_sessions[user_id]["tasks"] = tasks
+            user_sessions[user_id]["current_task"] = 0
+            user_sessions[user_id]["results"] = []
             await send_task(callback.message, user_id)
-        else:
-            await finish_checklist(callback.message, user_id)
+
+        elif data.startswith("task:"):
+            result = data.split(":")[1]
+            session = user_sessions[user_id]
+            session["results"].append((session["tasks"][session["current_task"]], result))
+            session["current_task"] += 1
+            if session["current_task"] < len(session["tasks"]):
+                await send_task(callback.message, user_id)
+            else:
+                await finish_checklist(callback.message, user_id)
+    except Exception as e:
+        logger.error(f"Error in callback_handler: {e}\n{traceback.format_exc()}")
+        await callback.message.answer("❌ An error occurred. Please restart the bot with /start")
 
 async def send_task(message, user_id):
     """Отправка задачи пользователю"""
-    session = user_sessions[user_id]
-    task_text = session["tasks"][session["current_task"]]
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("✅ Done", callback_data="task:Done"),
-        InlineKeyboardButton("❌ Not Done", callback_data="task:Not Done")
-    )
-    await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
+    try:
+        session = user_sessions[user_id]
+        task_text = session["tasks"][session["current_task"]]
+        keyboard = InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            InlineKeyboardButton("✅ Done", callback_data="task:Done"),
+            InlineKeyboardButton("❌ Not Done", callback_data="task:Not Done")
+        )
+        await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
+    except Exception as e:
+        logger.error(f"Error in send_task: {e}\n{traceback.format_exc()}")
 
 async def finish_checklist(message, user_id):
     """Завершение чек-листа и отправка отчета"""
-    session = user_sessions[user_id]
-    report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
-    for task, result in session["results"]:
-        report += f"- {task} → {result}\n"
-    await message.answer("Checklist completed ✅ Report sent to manager.")
     try:
-        await message.bot.send_message(ADMIN_ID, report)
-        logger.info(f"Report sent to admin {ADMIN_ID}")
+        session = user_sessions[user_id]
+        report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
+        for task, result in session["results"]:
+            report += f"- {task} → {result}\n"
+        await message.answer("Checklist completed ✅ Report sent to manager.")
+        try:
+            await message.bot.send_message(ADMIN_ID, report)
+            logger.info(f"Report sent to admin {ADMIN_ID}")
+        except Exception as e:
+            logger.error(f"Error sending report: {e}\n{traceback.format_exc()}")
     except Exception as e:
-        logger.error(f"Error sending report: {str(e)}")
+        logger.error(f"Error in finish_checklist: {e}\n{traceback.format_exc()}")
 
 # ========== WEBHOOK НАСТРОЙКИ ==========
 async def on_startup(bot: Bot):
     """Действия при запуске бота"""
-    logger.info("Running startup actions...")
-    
-    if BASE_WEBHOOK_URL:
-        webhook_url = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
-        try:
+    try:
+        logger.info("Running startup actions...")
+        
+        if BASE_WEBHOOK_URL:
+            webhook_url = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
             await bot.set_webhook(webhook_url)
             logger.info(f"Webhook set to: {webhook_url}")
             
             # Проверка установки вебхука
             webhook_info = await bot.get_webhook_info()
             logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
-        except Exception as e:
-            logger.error(f"Error setting webhook: {str(e)}")
-    else:
-        logger.warning("Skipping webhook setup: BASE_WEBHOOK_URL not set")
+        else:
+            logger.warning("Skipping webhook setup: BASE_WEBHOOK_URL not set")
+    except Exception as e:
+        logger.error(f"Error in on_startup: {e}\n{traceback.format_exc()}")
 
 async def health_check(request: web.Request) -> web.Response:
     """Проверка работоспособности сервера"""
@@ -390,69 +403,71 @@ async def health_check(request: web.Request) -> web.Response:
 
 # ========== ЗАПУСК СЕРВЕРА ==========
 def main():
-    if not TELEGRAM_TOKEN:
-        logger.error("❌ TELEGRAM_TOKEN environment variable is required!")
-        return
-    
-    bot = Bot(TELEGRAM_TOKEN)
-    dp = Dispatcher()
-    
-    # Регистрация обработчиков
-    dp.message.register(start_handler, Command("start"))
-    dp.message.register(message_handler)
-    dp.callback_query.register(callback_handler)
-    
-    # Действия при запуске
-    dp.startup.register(on_startup)
-    
-    # Создаем aiohttp приложение
-    app = web.Application()
-    app["bot"] = bot
-    
-    # Регистрация эндпоинтов
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    
-    # Регистрация обработчика вебхука
-    webhook_requests_handler = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot,
-    )
-    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
-    
-    # Middleware для логирования запросов
-    @web.middleware
-    async def log_middleware(request: web.Request, handler):
-        logger.info(f"Incoming request: {request.method} {request.path}")
-        return await handler(request)
-    
-    app.middlewares.append(log_middleware)
-    
-    # Обработчик ошибок
-    async def error_middleware(request: web.Request, handler):
-        try:
-            return await handler(request)
-        except web.HTTPException as ex:
-            return web.Response(text=f"Error: {ex.reason}", status=ex.status)
-        except Exception as e:
-            logger.error(f"Unhandled exception: {str(e)}")
-            return web.Response(text="Internal server error", status=500)
-    
-    app.middlewares.append(error_middleware)
-    
-    # Запуск сервера
-    logger.info(f"Starting server on port {WEB_SERVER_PORT}")
-    web.run_app(
-        app,
-        host=WEB_SERVER_HOST,
-        port=WEB_SERVER_PORT,
-        access_log=None  # Отключаем стандартное логирование aiohttp
-    )
+    try:
+        if not TELEGRAM_TOKEN:
+            logger.error("❌ TELEGRAM_TOKEN environment variable is required!")
+            return
+        
+        bot = Bot(TELEGRAM_TOKEN)
+        dp = Dispatcher()
+        
+        # Регистрация обработчиков
+        dp.message.register(start_handler, Command("start"))
+        dp.message.register(message_handler)
+        dp.callback_query.register(callback_handler)
+        
+        # Действия при запуске
+        dp.startup.register(on_startup)
+        
+        # Создаем aiohttp приложение
+        app = web.Application()
+        app["bot"] = bot
+        
+        # Регистрация эндпоинтов
+        app.router.add_get("/", health_check)
+        app.router.add_get("/health", health_check)
+        
+        # Регистрация обработчика вебхука с обработкой ошибок
+        async def webhook_handler(request: web.Request) -> web.Response:
+            try:
+                # Логирование тела запроса для отладки
+                body = await request.text()
+                logger.debug(f"Incoming update: {body}")
+                
+                handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+                response = await handler.handle(request)
+                return response
+            except Exception as e:
+                logger.error(f"Error in webhook handler: {e}\n{traceback.format_exc()}")
+                return web.Response(status=500, text="Internal Server Error")
+        
+        app.router.add_post(WEBHOOK_PATH, webhook_handler)
+        
+        # Middleware для логирования запросов
+        @web.middleware
+        async def log_middleware(request: web.Request, handler):
+            logger.info(f"Request: {request.method} {request.path}")
+            try:
+                response = await handler(request)
+                logger.info(f"Response status: {response.status}")
+                return response
+            except Exception as e:
+                logger.error(f"Unhandled exception: {e}\n{traceback.format_exc()}")
+                return web.Response(text="Internal Server Error", status=500)
+        
+        app.middlewares.append(log_middleware)
+        
+        # Запуск сервера
+        logger.info(f"Starting server on port {WEB_SERVER_PORT}")
+        web.run_app(
+            app,
+            host=WEB_SERVER_HOST,
+            port=WEB_SERVER_PORT,
+            access_log=None  # Отключаем стандартное логирование aiohttp
+        )
+    except Exception as e:
+        logger.critical(f"Fatal error in main: {e}\n{traceback.format_exc()}")
 
 if __name__ == "__main__":
     logger.info("===== STARTING BOT =====")
-    try:
-        main()
-    except Exception as e:
-        logger.critical(f"Fatal error: {str(e)}")
-        raise
+    main()
