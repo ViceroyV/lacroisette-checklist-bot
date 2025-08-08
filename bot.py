@@ -1,9 +1,9 @@
 import os
 import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiogram.webhook.aiohttp_server import setup_application, SimpleRequestHandler
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiohttp import web
 
 # ========== КОНФИГУРАЦИЯ ==========
@@ -18,23 +18,20 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 
-# Render-specific settings
+# Настройки для Render
 WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(os.getenv("PORT", 8080))
 WEBHOOK_PATH = "/webhook"
-BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", os.getenv("WEBHOOK_URL", ""))
 
-# Автоматическое определение BASE_WEBHOOK_URL
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "")
-if RENDER_EXTERNAL_URL:
-    BASE_WEBHOOK_URL = RENDER_EXTERNAL_URL
-    logger.info(f"Using RENDER_EXTERNAL_URL: {BASE_WEBHOOK_URL}")
-else:
-    BASE_WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
-    if BASE_WEBHOOK_URL:
-        logger.info(f"Using WEBHOOK_URL: {BASE_WEBHOOK_URL}")
-    else:
-        logger.warning("Neither WEBHOOK_URL nor RENDER_EXTERNAL_URL set!")
+# Диагностика
+logger.info("===== CONFIGURATION =====")
+logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
+logger.info(f"ADMIN_ID: {ADMIN_ID}")
+logger.info(f"BOT_PASSWORD: {'set' if BOT_PASSWORD else 'NOT SET!'}")
+logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
+logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
+logger.info("=========================")
 
 # ========== ДАННЫЕ ЧЕК-ЛИСТОВ ==========
 checklists = {
@@ -278,11 +275,19 @@ checklists = {
 # ========== СОСТОЯНИЕ БОТА ==========
 user_sessions = {}
 
-# ========== ОБРАБОТЧИКИ СООБЩЕНИЙ ==========
+# ========== ОБРАБОТЧИКИ КОМАНД ==========
 async def start_handler(message: types.Message):
-    await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
+    """Обработчик команды /start"""
+    logger.info(f"Received /start from {message.from_user.id}")
+    try:
+        await message.answer("Welcome to La Croisette Checklist Bot.\nPlease enter the password:")
+        logger.info("Start message sent")
+    except Exception as e:
+        logger.error(f"Error sending start message: {str(e)}")
 
 async def message_handler(message: types.Message):
+    """Обработчик текстовых сообщений"""
+    logger.info(f"Message from {message.from_user.id}: {message.text[:50]}")
     user_id = message.from_user.id
     text = message.text.strip()
 
@@ -303,6 +308,8 @@ async def message_handler(message: types.Message):
         await message.answer("Select your role:", reply_markup=keyboard)
 
 async def callback_handler(callback: types.CallbackQuery):
+    """Обработчик callback-запросов"""
+    logger.info(f"Callback from {callback.from_user.id}: {callback.data}")
     user_id = callback.from_user.id
     data = callback.data
 
@@ -335,6 +342,7 @@ async def callback_handler(callback: types.CallbackQuery):
             await finish_checklist(callback.message, user_id)
 
 async def send_task(message, user_id):
+    """Отправка задачи пользователю"""
     session = user_sessions[user_id]
     task_text = session["tasks"][session["current_task"]]
     keyboard = InlineKeyboardMarkup(row_width=2)
@@ -345,27 +353,47 @@ async def send_task(message, user_id):
     await message.answer(f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", reply_markup=keyboard)
 
 async def finish_checklist(message, user_id):
+    """Завершение чек-листа и отправка отчета"""
     session = user_sessions[user_id]
     report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
     for task, result in session["results"]:
         report += f"- {task} → {result}\n"
     await message.answer("Checklist completed ✅ Report sent to manager.")
-    await message.bot.send_message(ADMIN_ID, report)
+    try:
+        await message.bot.send_message(ADMIN_ID, report)
+        logger.info(f"Report sent to admin {ADMIN_ID}")
+    except Exception as e:
+        logger.error(f"Error sending report: {str(e)}")
 
 # ========== WEBHOOK НАСТРОЙКИ ==========
-async def on_startup(bot: Bot) -> None:
-    # Установка вебхука
+async def on_startup(bot: Bot):
+    """Действия при запуске бота"""
+    logger.info("Running startup actions...")
+    
     if BASE_WEBHOOK_URL:
-        await bot.set_webhook(f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
-        logger.info(f"Webhook set to {BASE_WEBHOOK_URL}{WEBHOOK_PATH}")
+        webhook_url = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
+        try:
+            await bot.set_webhook(webhook_url)
+            logger.info(f"Webhook set to: {webhook_url}")
+            
+            # Проверка установки вебхука
+            webhook_info = await bot.get_webhook_info()
+            logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
+        except Exception as e:
+            logger.error(f"Error setting webhook: {str(e)}")
+    else:
+        logger.warning("Skipping webhook setup: BASE_WEBHOOK_URL not set")
 
 async def health_check(request: web.Request) -> web.Response:
-    """Эндпоинт для проверки здоровья приложения"""
-    return web.Response(text="Bot is running")
+    """Проверка работоспособности сервера"""
+    return web.Response(text="✅ Bot is running")
 
-# ========== ЗАПУСК ПРИЛОЖЕНИЯ ==========
-def main() -> None:
-    # Инициализация бота и диспетчера
+# ========== ЗАПУСК СЕРВЕРА ==========
+def main():
+    if not TELEGRAM_TOKEN:
+        logger.error("❌ TELEGRAM_TOKEN environment variable is required!")
+        return
+    
     bot = Bot(TELEGRAM_TOKEN)
     dp = Dispatcher()
     
@@ -374,28 +402,57 @@ def main() -> None:
     dp.message.register(message_handler)
     dp.callback_query.register(callback_handler)
     
-    # Регистрация обработчика запуска
+    # Действия при запуске
     dp.startup.register(on_startup)
     
-    # Создание aiohttp приложения
+    # Создаем aiohttp приложение
     app = web.Application()
     app["bot"] = bot
     
     # Регистрация эндпоинтов
+    app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
-    app.router.add_get("/", health_check)  # Добавлен корневой эндпоинт
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     
-    # Запуск приложения
+    # Регистрация обработчика вебхука
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    
+    # Middleware для логирования запросов
+    @web.middleware
+    async def log_middleware(request: web.Request, handler):
+        logger.info(f"Incoming request: {request.method} {request.path}")
+        return await handler(request)
+    
+    app.middlewares.append(log_middleware)
+    
+    # Обработчик ошибок
+    async def error_middleware(request: web.Request, handler):
+        try:
+            return await handler(request)
+        except web.HTTPException as ex:
+            return web.Response(text=f"Error: {ex.reason}", status=ex.status)
+        except Exception as e:
+            logger.error(f"Unhandled exception: {str(e)}")
+            return web.Response(text="Internal server error", status=500)
+    
+    app.middlewares.append(error_middleware)
+    
+    # Запуск сервера
     logger.info(f"Starting server on port {WEB_SERVER_PORT}")
-    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+    web.run_app(
+        app,
+        host=WEB_SERVER_HOST,
+        port=WEB_SERVER_PORT,
+        access_log=None  # Отключаем стандартное логирование aiohttp
+    )
 
 if __name__ == "__main__":
-    # Проверка обязательных переменных
-    if not TELEGRAM_TOKEN:
-        logger.error("Missing required environment variable: TELEGRAM_TOKEN")
-        exit(1)
-        
-    logger.info("Starting bot...")
-    main()
-        
+    logger.info("===== STARTING BOT =====")
+    try:
+        main()
+    except Exception as e:
+        logger.critical(f"Fatal error: {str(e)}")
+        raise
