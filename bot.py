@@ -4,13 +4,18 @@ import traceback
 import json
 import secrets
 import string
+import time
+import glob
+import csv
+from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 # ========== LOGGING SETUP ==========
@@ -22,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # ========== CONFIGURATION ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
 
 # Render settings
@@ -30,6 +35,7 @@ WEB_SERVER_HOST = "0.0.0.0"
 WEB_SERVER_PORT = int(os.getenv("PORT", 10000))
 WEBHOOK_PATH = "/webhook"
 BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", os.getenv("WEBHOOK_URL", ""))
+REPORTS_DIR = "reports"
 
 # Validate required parameters
 if not TELEGRAM_TOKEN:
@@ -40,10 +46,13 @@ if not TELEGRAM_TOKEN:
 API_KEY = TELEGRAM_TOKEN.split(':')[1]
 SECRET_TOKEN = API_KEY[:32]  # Use first 32 characters of API key
 
+# Create reports directory if not exists
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
 # Diagnostics
 logger.info("===== BOT CONFIGURATION =====")
 logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
-logger.info(f"ADMIN_ID: {ADMIN_ID}")
+logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
 logger.info(f"BOT_PASSWORD: {'set' if BOT_PASSWORD else 'NOT SET!'}")
 logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
 logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
@@ -61,6 +70,9 @@ class AdminStates(StatesGroup):
     RENAME_CHECKLIST = State()
     NEW_CHECKLIST = State()
     GENERATE_PASSWORD = State()
+    CONFIRM_DELETE_TASK = State()
+    CONFIRM_DELETE_CHECKLIST = State()
+    VIEW_REPORTS = State()
 
 # ========== CHECKLIST DATA ==========
 def load_checklists():
@@ -144,6 +156,7 @@ checklists = load_checklists()
 
 # ========== BOT STATE ==========
 user_sessions = {}
+storage = MemoryStorage()
 
 # ========== HELPER FUNCTIONS ==========
 def generate_password(length=10):
@@ -153,17 +166,21 @@ def generate_password(length=10):
 
 def is_admin(user_id):
     """Check if user is admin"""
-    return user_id == ADMIN_ID
+    return user_id in ADMIN_IDS
 
 def checklist_keyboard(role):
     """Create checklist selection keyboard"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     for cl_name in checklists[role].keys():
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=cl_name, callback_data=f"cl:{cl_name}")
+            InlineKeyboardButton(text=cl_name, callback_data=f"cl:{cl_name}"),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_cl:{cl_name}")
         ])
     keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="➕ Add New Checklist", callback_data="add_checklist")
+    ])
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text="⬅️ Back to Roles", callback_data="back_to_roles")
     ])
     return keyboard
 
@@ -173,7 +190,8 @@ def tasks_keyboard(tasks):
     
     for i, task in enumerate(tasks):
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=f"✏️ {i+1}. {task[:20]}...", callback_data=f"edit_task:{i}")
+            InlineKeyboardButton(text=f"✏️ {i+1}. {task[:20]}...", callback_data=f"edit_task:{i}"),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_task:{i}")
         ])
     
     keyboard.inline_keyboard.append([
@@ -186,6 +204,82 @@ def tasks_keyboard(tasks):
         InlineKeyboardButton(text="⬅️ Back to Checklists", callback_data="back_to_checklists")
     ])
     return keyboard
+
+def reports_keyboard():
+    """Create reports management keyboard"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 View Last 10 Reports", callback_data="view_reports")],
+        [InlineKeyboardButton(text="📥 Download All Reports (CSV)", callback_data="download_reports")],
+        [InlineKeyboardButton(text="🧹 Clear Reports", callback_data="clear_reports")],
+        [InlineKeyboardButton(text="⬅️ Back to Admin Menu", callback_data="back_to_admin")]
+    ])
+    return keyboard
+
+def save_report(user_id, user_name, role, cl_name, results):
+    """Save report to file"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{REPORTS_DIR}/report_{timestamp}_{user_id}.json"
+    
+    report_data = {
+        "timestamp": time.time(),
+        "date": datetime.now().isoformat(),
+        "user_id": user_id,
+        "user_name": user_name,
+        "role": role,
+        "checklist": cl_name,
+        "results": results
+    }
+    
+    with open(filename, 'w') as f:
+        json.dump(report_data, f, indent=2)
+    
+    logger.info(f"Report saved: {filename}")
+    return filename
+
+def get_reports(limit=10):
+    """Get list of reports sorted by date"""
+    report_files = glob.glob(f"{REPORTS_DIR}/report_*.json")
+    report_files.sort(key=os.path.getmtime, reverse=True)
+    return report_files[:limit]
+
+def generate_csv_report():
+    """Generate CSV file with all reports"""
+    csv_filename = f"{REPORTS_DIR}/all_reports_{int(time.time())}.csv"
+    report_files = glob.glob(f"{REPORTS_DIR}/report_*.json")
+    
+    with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['date', 'user_id', 'user_name', 'role', 'checklist', 'task', 'status']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for report_file in report_files:
+            try:
+                with open(report_file, 'r') as f:
+                    report = json.load(f)
+                    for task, status in report['results']:
+                        writer.writerow({
+                            'date': report['date'],
+                            'user_id': report['user_id'],
+                            'user_name': report['user_name'],
+                            'role': report['role'],
+                            'checklist': report['checklist'],
+                            'task': task,
+                            'status': status
+                        })
+            except Exception as e:
+                logger.error(f"Error processing report {report_file}: {e}")
+    
+    return csv_filename
+
+def clear_reports():
+    """Clear all reports"""
+    report_files = glob.glob(f"{REPORTS_DIR}/report_*.json")
+    for file in report_files:
+        try:
+            os.remove(file)
+        except Exception as e:
+            logger.error(f"Error deleting report {file}: {e}")
+    return len(report_files)
 
 # ========== COMMAND HANDLERS ==========
 async def start_handler(message: types.Message):
@@ -205,6 +299,7 @@ async def start_handler(message: types.Message):
                 "You can use the following commands:\n"
                 "/start - Show this message\n"
                 "/edit_checklists - Edit checklists\n"
+                "/reports - Manage reports\n"
                 "/generate_password - Generate new password\n"
                 "\nPlease enter the password to use the bot:"
             )
@@ -328,6 +423,16 @@ async def edit_checklists_handler(message: types.Message, state: FSMContext):
         
     await message.answer("Select a role to edit checklists:", reply_markup=keyboard)
 
+async def reports_handler(message: types.Message, state: FSMContext):
+    """Handler for /reports command"""
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ You don't have permission to use this command.")
+        return
+        
+    await state.set_state(AdminStates.VIEW_REPORTS)
+    keyboard = reports_keyboard()
+    await message.answer("📊 Reports Management:", reply_markup=keyboard)
+
 async def generate_password_handler(message: types.Message, state: FSMContext):
     """Handler for /generate_password command"""
     if not is_admin(message.from_user.id):
@@ -380,10 +485,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.update_data(role=role)
             
             keyboard = checklist_keyboard(role)
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(text="⬅️ Back to Roles", callback_data="back_to_roles")
-            ])
-            
             await callback.message.edit_text(
                 f"Select a checklist for {role}:",
                 reply_markup=keyboard
@@ -424,6 +525,93 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Current task text:\n{task_text}\n\n"
                 "Please enter the new text for this task:"
             )
+            
+        # Delete task confirmation
+        elif data.startswith("delete_task:"):
+            task_index = int(data.split(":")[1])
+            await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
+            await state.update_data(task_index=task_index)
+            
+            role = (await state.get_data())['role']
+            cl_name = (await state.get_data())['checklist']
+            task_text = checklists[role][cl_name][task_index]
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_task:{task_index}")],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+            ])
+            
+            await callback.message.answer(
+                f"⚠️ Are you sure you want to delete this task?\n\n{task_text}",
+                reply_markup=keyboard
+            )
+            
+        # Confirm task deletion
+        elif data.startswith("confirm_delete_task:"):
+            task_index = int(data.split(":")[1])
+            data = await state.get_data()
+            role = data['role']
+            cl_name = data['checklist']
+            
+            if task_index < len(checklists[role][cl_name]):
+                deleted_task = checklists[role][cl_name].pop(task_index)
+                save_checklists()
+                await callback.message.answer(f"✅ Task deleted:\n{deleted_task}")
+                await show_checklist_editor(callback.message, state, role, cl_name)
+            else:
+                await callback.message.answer("❌ Task index out of range!")
+            
+            await state.set_state(None)
+            
+        # Delete checklist confirmation
+        elif data.startswith("delete_cl:"):
+            cl_name = data.split(":")[1]
+            await state.set_state(AdminStates.CONFIRM_DELETE_CHECKLIST)
+            await state.update_data(delete_cl_name=cl_name)
+            
+            role = (await state.get_data())['role']
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_cl:{cl_name}")],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+            ])
+            
+            await callback.message.answer(
+                f"⚠️ Are you sure you want to delete the checklist '{cl_name}'?",
+                reply_markup=keyboard
+            )
+            
+        # Confirm checklist deletion
+        elif data.startswith("confirm_delete_cl:"):
+            cl_name = data.split(":")[1]
+            data = await state.get_data()
+            role = data['role']
+            
+            if cl_name in checklists[role]:
+                deleted_checklist = checklists[role].pop(cl_name)
+                save_checklists()
+                await callback.message.answer(f"✅ Checklist '{cl_name}' deleted!")
+                
+                # Return to role selection
+                await state.set_state(AdminStates.SELECT_ROLE)
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+                for role_name in checklists.keys():
+                    keyboard.inline_keyboard.append([
+                        InlineKeyboardButton(text=role_name, callback_data=f"admin_role:{role_name}")
+                    ])
+                await callback.message.answer("Select a role:", reply_markup=keyboard)
+            else:
+                await callback.message.answer("❌ Checklist not found!")
+            
+            await state.set_state(None)
+            
+        # Cancel delete operation
+        elif data == "cancel_delete":
+            await state.set_state(None)
+            await callback.message.answer("❌ Deletion canceled.")
+            role = (await state.get_data())['role']
+            cl_name = (await state.get_data())['checklist']
+            await show_checklist_editor(callback.message, state, role, cl_name)
         
         # Back to checklists
         elif data == "back_to_checklists":
@@ -431,10 +619,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.SELECT_CHECKLIST)
             
             keyboard = checklist_keyboard(role)
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(text="⬅️ Back to Roles", callback_data="back_to_roles")
-            ])
-            
             await callback.message.edit_text(
                 f"Select a checklist for {role}:",
                 reply_markup=keyboard
@@ -472,6 +656,49 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 parse_mode="HTML"
             )
             await state.set_state(None)
+        
+        # View reports
+        elif data == "view_reports":
+            reports = get_reports(10)
+            if not reports:
+                await callback.message.answer("📭 No reports available.")
+                return
+                
+            response = "📋 Last 10 Reports:\n\n"
+            for i, report_file in enumerate(reports, 1):
+                try:
+                    with open(report_file, 'r') as f:
+                        report = json.load(f)
+                        response += (
+                            f"{i}. {report['date']}\n"
+                            f"👤 {report['user_name']} (ID: {report['user_id']})\n"
+                            f"🏷️ {report['role']} - {report['checklist']}\n"
+                            f"✅ Done: {sum(1 for _, status in report['results'] if status == 'Done' else 0}\n"
+                            f"❌ Not Done: {sum(1 for _, status in report['results'] if status != 'Done' else 0}\n\n"
+                        )
+                except Exception as e:
+                    logger.error(f"Error reading report {report_file}: {e}")
+                    response += f"{i}. Error reading report\n\n"
+            
+            await callback.message.answer(response)
+        
+        # Download reports
+        elif data == "download_reports":
+            csv_file = generate_csv_report()
+            await callback.message.answer_document(
+                FSInputFile(csv_file),
+                caption="📥 All reports in CSV format"
+            )
+        
+        # Clear reports
+        elif data == "clear_reports":
+            deleted_count = clear_reports()
+            await callback.message.answer(f"🧹 Deleted {deleted_count} reports!")
+        
+        # Back to admin menu
+        elif data == "back_to_admin":
+            await state.set_state(None)
+            await callback.message.answer("🔙 Returned to main menu")
         
         # Cancel admin operation
         elif data == "admin_cancel":
@@ -511,6 +738,7 @@ async def callback_handler(callback: types.CallbackQuery):
             user_sessions[user_id]["tasks"] = tasks
             user_sessions[user_id]["current_task"] = 0
             user_sessions[user_id]["results"] = []
+            user_sessions[user_id]["checklist"] = cl_name
             await send_task(
                 bot=callback.bot, 
                 chat_id=callback.message.chat.id, 
@@ -564,24 +792,34 @@ async def finish_checklist(message, user_id):
     """Complete checklist and send report"""
     try:
         session = user_sessions[user_id]
-        report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\n\n"
+        report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\nChecklist: {session['checklist']}\n\n"
         
         for task, result in session["results"]:
             status = "✅ Done" if result == "Done" else "❌ Not Done"
             report += f"- {task} → {status}\n"
         
-        await message.answer("✅ Checklist completed! Report sent to manager.")
+        # Save report
+        save_report(
+            user_id=user_id,
+            user_name=session['name'],
+            role=session['role'],
+            cl_name=session['checklist'],
+            results=session["results"]
+        )
+        
+        await message.answer("✅ Checklist completed! Report saved.")
         
         try:
-            # Send report to admin
-            await message.bot.send_message(
-                ADMIN_ID, 
-                report
-            )
-            logger.info(f"Report sent to admin {ADMIN_ID}")
+            # Send report to all admins
+            for admin_id in ADMIN_IDS:
+                await message.bot.send_message(
+                    admin_id, 
+                    report
+                )
+                logger.info(f"Report sent to admin {admin_id}")
         except Exception as e:
             logger.error(f"Error sending report: {e}\n{traceback.format_exc()}")
-            await message.answer("⚠️ Failed to send report to manager. Please notify admin directly.")
+            await message.answer("⚠️ Failed to send report to managers. Please notify admin directly.")
         
         # Cleanup session
         if user_id in user_sessions:
@@ -641,21 +879,18 @@ def main():
             default=DefaultBotProperties(parse_mode="HTML")
         )
         
-        dp = Dispatcher()
+        dp = Dispatcher(storage=storage)
         
         # Register handlers
         dp.message.register(start_handler, Command("start"))
         dp.message.register(edit_checklists_handler, Command("edit_checklists"))
+        dp.message.register(reports_handler, Command("reports"))
         dp.message.register(generate_password_handler, Command("generate_password"))
         dp.message.register(message_handler)
         
         # Callback handlers
         dp.callback_query.register(callback_handler)
-        dp.callback_query.register(admin_callback_handler, F.data.startswith("admin_") | F.data.startswith("cl:") | 
-                                 F.data.startswith("edit_task:") | F.data.startswith("gen_pass_") | 
-                                 F.data == "add_task" | F.data == "add_checklist" | 
-                                 F.data == "rename_checklist" | F.data == "back_to_checklists" |
-                                 F.data == "back_to_roles" | F.data == "admin_cancel")
+        dp.callback_query.register(admin_callback_handler)
         
         # Startup actions
         dp.startup.register(on_startup)
