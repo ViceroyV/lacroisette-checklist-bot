@@ -327,7 +327,7 @@ def load_checklists():
             "Turn off dishwasher and clean filters.",
             "Empty and clean sinks.",
             "Store all cleaned dishes.",
-            "Mopping dishwashing area."
+            "Mop dishwashing area."
         ]
     },
     "Maintenance": {
@@ -372,7 +372,7 @@ def is_admin(user_id):
 
 def get_user_password(user_id):
     """Get password for user or default if not set"""
-    return user_passwords.get(str(user_id), DEFAULT_PASSWORD)
+    return user_passwords.get(str(user_id), DEFAULT_PASSWORD
 
 def checklist_keyboard(role):
     """Create checklist selection keyboard"""
@@ -571,12 +571,14 @@ async def message_handler(message: types.Message, state: FSMContext):
                     await state.set_state(None)
                 return
                 
-            # Edit task state
+            # Edit task state - ИСПРАВЛЕНИЕ: Сохраняем все необходимые данные
             elif current_state == AdminStates.EDIT_TASK.state:
                 data = await state.get_data()
                 role = data.get('role')
                 cl_name = data.get('checklist')
                 task_index = data.get('task_index')
+                
+                logger.info(f"Editing task: role={role}, checklist={cl_name}, index={task_index}")
                 
                 if role and cl_name and task_index is not None:
                     if 0 <= task_index < len(checklists[role][cl_name]):
@@ -847,24 +849,29 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.RENAME_CHECKLIST)
             await callback.message.answer("Please enter the new name for this checklist:")
         
-        # Edit task
+        # Edit task - ИСПРАВЛЕНИЕ: Сохраняем все данные перед переходом в состояние
         elif data.startswith("edit_task:"):
             task_index = int(data.split(":")[1])
-            await state.set_state(AdminStates.EDIT_TASK)
-            await state.update_data(task_index=task_index)
-            
             data_state = await state.get_data()
             role = data_state.get('role')
             cl_name = data_state.get('checklist')
             
-            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
+            if role and cl_name:
+                # Сохраняем все данные в состоянии
+                await state.update_data(
+                    role=role,
+                    checklist=cl_name,
+                    task_index=task_index
+                )
+                await state.set_state(AdminStates.EDIT_TASK)
+                
                 task_text = checklists[role][cl_name][task_index]
                 await callback.message.answer(
                     f"Current task text:\n{task_text}\n\n"
                     "Please enter the new text for this task:"
                 )
             else:
-                await callback.message.answer("❌ Task not found!")
+                await callback.message.answer("❌ Role or checklist not selected!")
             
         # Delete task confirmation
         elif data.startswith("delete_task:"):
