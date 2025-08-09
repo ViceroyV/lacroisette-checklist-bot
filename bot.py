@@ -17,6 +17,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
+import asyncio
 
 # ========== LOGGING SETUP ==========
 logging.basicConfig(
@@ -83,242 +84,67 @@ def load_checklists():
     except (FileNotFoundError, json.JSONDecodeError):
         # Return default checklists if file doesn't exist
         return {
-               "Bartender": {
-        "Opening Shift": [
-            "Get the keys and open the bar shutters. Clean shutters and locks.",
-            "Turn on the lights in the bar area.",
-            "Check that all bar equipment is working.",
-            "Turn on background music.",
-            "Fill ice bins with fresh ice.",
-            "Prepare all bar tools (shakers, strainers, spoons, etc.).",
-            "Restock bottles and ingredients.",
-            "Check beer kegs and replace if needed.",
-            "Wipe the bar counter and shelves.",
-            "Prepare garnish trays (lemons, limes, herbs, etc.).",
-            "Check and clean glasses.",
-            "Ensure the cash register is ready and has enough change.",
-            "Test the card payment terminal.",
-            "Refill napkins, straws, and stirrers.",
-            "Check fridges for drinks and refill if necessary.",
-            "Make sure the menu is clean and complete."
-        ],
-        "Closing Shift": [
-            "Remove and discard all leftover garnish.",
-            "Wash and store all bar tools (shakers, spoons, strainers, etc.).",
-            "Empty and clean ice bins.",
-            "Wipe the bar counter and shelves.",
-            "Check and note stock levels for the next day.",
-            "Close beer taps and turn off the gas supply.",
-            "Switch off all bar equipment.",
-            "Clean fridges inside and outside.",
-            "Lock alcohol storage.",
-            "Turn off lights and music.",
-            "Close and lock the bar shutters.",
-            "Return keys to the manager."
-        ]
-    },
-    "Cashier": {
-        "Opening Shift": [
-            "Get the keys and open the cashier station.",
-            "Turn on the cashier lights.",
-            "Switch on the cash register.",
-            "Count the starting cash balance and record it.",
-            "Check the payment terminal (card machine) is working.",
-            "Make sure receipt paper is loaded.",
-            "Prepare coins and small bills for change.",
-            "Ensure the working area is clean and organized.",
-            "Check the menu display and update if needed.",
-            "Prepare order slips and pens."
-        ],
-        "Closing Shift": [
-            "Count the final cash balance and record it.",
-            "Compare with the starting balance and sales report.",
-            "Close and log out from the cash register.",
-            "Turn off the payment terminal (card machine).",
-            "Remove and store receipt paper if needed.",
-            "Clean and organize the cashier station.",
-            "Lock the cash drawer.",
-            "Turn off cashier lights.",
-            "Close and lock the cashier station.",
-            "Return keys to the manager."
-        ]
-    },
-    "Manager": {
-        "Opening Shift": [
-            "Open the main entrance and turn off the alarm (if applicable).",
-            "Turn on all restaurant lights.",
-            "Check that all areas are clean and tidy (dining room, bar, kitchen, toilets).",
-            "Make sure all equipment is working (coffee machine, fridges, POS, etc.).",
-            "Confirm staff attendance and assign tasks for the shift.",
-            "Review reservations for the day.",
-            "Ensure menus are clean and complete.",
-            "Check stock of key items (coffee, drinks, napkins, etc.).",
-            "Coordinate with kitchen on specials and menu availability.",
-            "Open doors for service and greet first guests if necessary."
-        ],
-        "Closing Shift": [
-            "Check that all guests have left the premises.",
-            "Ensure all cash from the cashier is counted and recorded.",
-            "Verify sales reports from POS.",
-            "Lock the cash in the safe.",
-            "Confirm all areas are clean (dining room, bar, kitchen, toilets).",
-            "Turn off all lights and equipment.",
-            "Check that doors and windows are closed and locked.",
-            "Activate the alarm (if applicable).",
-            "Collect keys and store them securely.",
-            "Complete the end-of-day report."
-        ]
-    },
-    "Leader": {
-        "Opening Shift": [
-            "Arrive 15 minutes before shift start.",
-            "Check staff attendance and appearance.",
-            "Ensure all stations are ready for service.",
-            "Review special offers and daily menu with staff.",
-            "Distribute tasks between team members.",
-            "Check that stock levels are adequate.",
-            "Test POS terminals at all stations.",
-            "Make sure uniforms are clean and neat.",
-            "Walk through the restaurant to check readiness.",
-            "Report any issues to the manager."
-        ],
-        "Closing Shift": [
-            "Make sure all tables are cleared and cleaned.",
-            "Check bar and kitchen are cleaned and equipment is off.",
-            "Verify all doors and windows are closed.",
-            "Ensure rubbish is taken out.",
-            "Confirm final stock count for the day.",
-            "Collect any lost and found items.",
-            "Hand over keys to the manager.",
-            "Write a short report about the shift."
-        ]
-    },
-    "Waiter": {
-        "Opening Shift": [
-            "Set tables with cutlery, glasses, and napkins.",
-            "Refill water bottles for service.",
-            "Check menu condition and replace if damaged.",
-            "Make sure the serving station is stocked.",
-            "Wipe tables and chairs.",
-            "Prepare condiment trays (salt, pepper, sauces).",
-            "Test POS terminal.",
-            "Make sure trays and service tools are clean.",
-            "Check that the dining area is tidy."
-        ],
-        "Closing Shift": [
-            "Clear and wipe all tables.",
-            "Return cutlery, glasses, and plates to the kitchen.",
-            "Clean condiment trays and store them.",
-            "Wipe chairs and tables.",
-            "Organize serving station for the next day.",
-            "Empty rubbish bins.",
-            "Turn off lights in the dining area.",
-            "Store menus."
-        ]
-    },
-    "Kitchen": {
-        "Opening Shift": [
-            "Turn on kitchen lights and equipment.",
-            "Check fridges and freezers.",
-            "Prepare ingredients for the day.",
-            "Set up cooking stations.",
-            "Ensure knives and tools are clean and sharp.",
-            "Wash hands and wear gloves/apron.",
-            "Check gas supply.",
-            "Verify kitchen cleanliness."
-        ],
-        "Closing Shift": [
-            "Turn off all kitchen equipment.",
-            "Clean and sanitize all surfaces.",
-            "Store leftover food properly.",
-            "Empty rubbish bins.",
-            "Wash and store all kitchen tools.",
-            "Check fridge and freezer doors are closed.",
-            "Turn off lights."
-        ]
-    },
-    "Hostess": {
-        "Opening Shift": [
-            "Check the reservation list and table plan.",
-            "Prepare the host stand (menus, reservation book, pens).",
-            "Make sure entrance area is clean and tidy.",
-            "Turn on entrance lights.",
-            "Check uniform and appearance.",
-            "Test the phone line.",
-            "Prepare guest waiting area.",
-            "Confirm special events or promotions with manager."
-        ],
-        "Closing Shift": [
-            "Store menus and reservation book.",
-            "Clean host stand.",
-            "Turn off entrance lights.",
-            "Ensure entrance doors are locked.",
-            "Store lost and found items.",
-            "Report to manager before leaving."
-        ]
-    },
-    "Cleaner": {
-        "Opening Shift": [
-            "Sweep and mop floors in all areas.",
-            "Clean toilets and restock supplies.",
-            "Wipe tables, chairs, and counters.",
-            "Empty rubbish bins.",
-            "Check mirrors and glass doors for smudges.",
-            "Refill soap and paper towels."
-        ],
-        "Closing Shift": [
-            "Sweep and mop floors.",
-            "Clean and disinfect toilets.",
-            "Empty all rubbish bins and take trash out.",
-            "Wipe tables and chairs.",
-            "Check that cleaning tools are stored properly."
-        ]
-    },
-    "Security": {
-        "Opening Shift": [
-            "Check CCTV system.",
-            "Patrol the premises before opening.",
-            "Ensure all emergency exits are clear.",
-            "Test radios or communication devices.",
-            "Confirm shift schedule with manager."
-        ],
-        "Closing Shift": [
-            "Patrol the premises before locking.",
-            "Check all doors and windows.",
-            "Turn on alarm system.",
-            "Lock main entrance.",
-            "Record shift notes in logbook."
-        ]
-    },
-    "Dishwasher": {
-        "Opening Shift": [
-            "Turn on dishwasher.",
-            "Check detergents and refill if needed.",
-            "Prepare drying racks.",
-            "Ensure sinks are clean and ready."
-        ],
-        "Closing Shift": [
-            "Turn off dishwasher and clean filters.",
-            "Empty and clean sinks.",
-            "Store all cleaned dishes.",
-            "Mop dishwashing area."
-        ]
-    },
-    "Maintenance": {
-        "Opening Shift": [
-            "Check all lights and replace bulbs if needed.",
-            "Inspect toilets for plumbing issues.",
-            "Ensure air conditioning works.",
-            "Test all electrical outlets."
-        ],
-        "Closing Shift": [
-            "Turn off non-essential equipment.",
-            "Lock maintenance room.",
-            "Note any issues for repair.",
-            "Secure tools and supplies."
-        ]
-    }
-}
+            "Bartender": {
+                "Opening Shift": [
+                    "Get the keys and open the bar shutters. Clean shutters and locks.",
+                    "Turn on the lights in the bar area.",
+                    "Check that all bar equipment is working.",
+                    "Turn on background music.",
+                    "Fill ice bins with fresh ice.",
+                    "Prepare all bar tools (shakers, strainers, spoons, etc.).",
+                    "Restock bottles and ingredients.",
+                    "Check beer kegs and replace if needed.",
+                    "Wipe the bar counter and shelves.",
+                    "Prepare garnish trays (lemons, limes, herbs, etc.).",
+                    "Check and clean glasses.",
+                    "Ensure the cash register is ready and has enough change.",
+                    "Test the card payment terminal.",
+                    "Refill napkins, straws, and stirrers.",
+                    "Check fridges for drinks and refill if necessary.",
+                    "Make sure the menu is clean and complete."
+                ],
+                "Closing Shift": [
+                    "Remove and discard all leftover garnish.",
+                    "Wash and store all bar tools (shakers, spoons, strainers, etc.).",
+                    "Empty and clean ice bins.",
+                    "Wipe the bar counter and shelves.",
+                    "Check and note stock levels for the next day.",
+                    "Close beer taps and turn off the gas supply.",
+                    "Switch off all bar equipment.",
+                    "Clean fridges inside and outside.",
+                    "Lock alcohol storage.",
+                    "Turn off lights and music.",
+                    "Close and lock the bar shutters.",
+                    "Return keys to the manager."
+                ]
+            },
+            "Cashier": {
+                "Opening Shift": [
+                    "Get the keys and open the cashier station.",
+                    "Turn on the cashier lights.",
+                    "Switch on the cash register.",
+                    "Count the starting cash balance and record it.",
+                    "Check the payment terminal (card machine) is working.",
+                    "Make sure receipt paper is loaded.",
+                    "Prepare coins and small bills for change.",
+                    "Ensure the working area is clean and organized.",
+                    "Check the menu display and update if needed.",
+                    "Prepare order slips and pens."
+                ],
+                "Closing Shift": [
+                    "Count the final cash balance and record it.",
+                    "Compare with the starting balance and sales report.",
+                    "Close and log out from the cash register.",
+                    "Turn off the payment terminal (card machine).",
+                    "Remove and store receipt paper if needed.",
+                    "Clean and organize the cashier station.",
+                    "Lock the cash drawer.",
+                    "Turn off cashier lights.",
+                    "Close and lock the cashier station.",
+                    "Return keys to the manager."
+                ]
+            }
+        }
 
 def save_checklists():
     """Save checklists to file"""
@@ -495,58 +321,78 @@ async def message_handler(message: types.Message, state: FSMContext):
         current_state = await state.get_state()
         if current_state:
             if current_state == AdminStates.ADD_TASK.state:
-                role = (await state.get_data())['role']
-                cl_name = (await state.get_data())['checklist']
-                checklists[role][cl_name].append(text)
-                save_checklists()
-                await message.answer(f"✅ Task added to {cl_name}!")
-                await show_checklist_editor(message, state, role, cl_name)
+                data = await state.get_data()
+                role = data.get('role')
+                cl_name = data.get('checklist')
+                
+                if role and cl_name:
+                    checklists[role][cl_name].append(text)
+                    save_checklists()
+                    await message.answer(f"✅ Task added to {cl_name}!")
+                    await show_checklist_editor(message, state, role, cl_name)
+                else:
+                    await message.answer("❌ Error: Role or checklist not found!")
+                
                 await state.set_state(None)
                 return
                 
             elif current_state == AdminStates.EDIT_TASK.state:
                 data = await state.get_data()
-                role = data['role']
-                cl_name = data['checklist']
-                task_index = data['task_index']
-                checklists[role][cl_name][task_index] = text
-                save_checklists()
-                await message.answer(f"✅ Task updated!")
-                await show_checklist_editor(message, state, role, cl_name)
+                role = data.get('role')
+                cl_name = data.get('checklist')
+                task_index = data.get('task_index')
+                
+                if role and cl_name and task_index is not None:
+                    if 0 <= task_index < len(checklists[role][cl_name]):
+                        checklists[role][cl_name][task_index] = text
+                        save_checklists()
+                        await message.answer(f"✅ Task updated!")
+                        await show_checklist_editor(message, state, role, cl_name)
+                    else:
+                        await message.answer("❌ Task index out of range!")
+                else:
+                    await message.answer("❌ Error: Missing data for task update!")
+                
                 await state.set_state(None)
                 return
                 
             elif current_state == AdminStates.RENAME_CHECKLIST.state:
                 data = await state.get_data()
-                role = data['role']
-                old_name = data['checklist']
+                role = data.get('role')
+                old_name = data.get('checklist')
                 new_name = text
                 
-                # Rename checklist
-                if old_name in checklists[role]:
-                    checklists[role][new_name] = checklists[role].pop(old_name)
-                    save_checklists()
-                    await message.answer(f"✅ Checklist renamed to {new_name}!")
-                    await show_checklist_editor(message, state, role, new_name)
+                if role and old_name:
+                    # Rename checklist
+                    if old_name in checklists[role]:
+                        checklists[role][new_name] = checklists[role].pop(old_name)
+                        save_checklists()
+                        await message.answer(f"✅ Checklist renamed to {new_name}!")
+                        await show_checklist_editor(message, state, role, new_name)
+                    else:
+                        await message.answer("❌ Checklist not found!")
                 else:
-                    await message.answer("❌ Checklist not found!")
+                    await message.answer("❌ Error: Role or checklist name missing!")
                 
                 await state.set_state(None)
                 return
                 
             elif current_state == AdminStates.NEW_CHECKLIST.state:
                 data = await state.get_data()
-                role = data['role']
+                role = data.get('role')
                 cl_name = text
                 
-                # Create new checklist
-                if cl_name not in checklists[role]:
-                    checklists[role][cl_name] = []
-                    save_checklists()
-                    await message.answer(f"✅ Checklist {cl_name} created!")
-                    await show_checklist_editor(message, state, role, cl_name)
+                if role:
+                    # Create new checklist
+                    if cl_name not in checklists[role]:
+                        checklists[role][cl_name] = []
+                        save_checklists()
+                        await message.answer(f"✅ Checklist {cl_name} created!")
+                        await show_checklist_editor(message, state, role, cl_name)
+                    else:
+                        await message.answer("❌ Checklist with this name already exists!")
                 else:
-                    await message.answer("❌ Checklist with this name already exists!")
+                    await message.answer("❌ Error: Role not found!")
                 
                 await state.set_state(None)
                 return
@@ -631,21 +477,39 @@ async def generate_password_handler(message: types.Message, state: FSMContext):
 # ========== ADMIN EDITING FLOW ==========
 async def show_checklist_editor(message, state, role, cl_name):
     """Show checklist editor interface"""
-    tasks = checklists[role][cl_name]
-    keyboard = tasks_keyboard(tasks)
-    
-    await message.answer(
-        f"📝 Editing: {role} - {cl_name}\n\n"
-        f"Tasks ({len(tasks)}):",
-        reply_markup=keyboard
-    )
-    
-    # Store current context
-    await state.update_data(role=role, checklist=cl_name)
+    try:
+        if role not in checklists or cl_name not in checklists[role]:
+            await message.answer("❌ Checklist not found!")
+            return
+        
+        tasks = checklists[role][cl_name]
+        keyboard = tasks_keyboard(tasks)
+        
+        # Store current context
+        await state.update_data(role=role, checklist=cl_name)
+        
+        # Try to edit message if possible, otherwise send new
+        if isinstance(message, types.CallbackQuery):
+            await message.message.edit_text(
+                f"📝 Editing: {role} - {cl_name}\n\n"
+                f"Tasks ({len(tasks)}):",
+                reply_markup=keyboard
+            )
+        else:
+            await message.answer(
+                f"📝 Editing: {role} - {cl_name}\n\n"
+                f"Tasks ({len(tasks)}):",
+                reply_markup=keyboard
+            )
+    except Exception as e:
+        logger.error(f"Error in show_checklist_editor: {e}")
+        await message.answer("❌ Error loading checklist editor. Please try again.")
 
 async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContext):
     """Handler for admin callback queries"""
     try:
+        logger.info(f"Admin callback: {callback.data}")
+        
         if not is_admin(callback.from_user.id):
             await callback.answer("❌ Access denied")
             return
@@ -668,8 +532,12 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         # Checklist selection
         elif data.startswith("cl:"):
             cl_name = data.split(":")[1]
-            role = (await state.get_data())['role']
-            await show_checklist_editor(callback.message, state, role, cl_name)
+            role = (await state.get_data()).get('role')
+            
+            if role:
+                await show_checklist_editor(callback, state, role, cl_name)
+            else:
+                await callback.message.answer("❌ Role not selected!")
         
         # Add new checklist
         elif data == "add_checklist":
@@ -692,14 +560,18 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.EDIT_TASK)
             await state.update_data(task_index=task_index)
             
-            role = (await state.get_data())['role']
-            cl_name = (await state.get_data())['checklist']
-            task_text = checklists[role][cl_name][task_index]
+            data = await state.get_data()
+            role = data.get('role')
+            cl_name = data.get('checklist')
             
-            await callback.message.answer(
-                f"Current task text:\n{task_text}\n\n"
-                "Please enter the new text for this task:"
-            )
+            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
+                task_text = checklists[role][cl_name][task_index]
+                await callback.message.answer(
+                    f"Current task text:\n{task_text}\n\n"
+                    "Please enter the new text for this task:"
+                )
+            else:
+                await callback.message.answer("❌ Task not found!")
             
         # Delete task confirmation
         elif data.startswith("delete_task:"):
@@ -707,36 +579,41 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
             await state.update_data(task_index=task_index)
             
-            role = (await state.get_data())['role']
-            cl_name = (await state.get_data())['checklist']
-            task_text = checklists[role][cl_name][task_index]
+            data = await state.get_data()
+            role = data.get('role')
+            cl_name = data.get('checklist')
             
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_task:{task_index}")],
-                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
-            ])
-            
-            await callback.message.answer(
-                f"⚠️ Are you sure you want to delete this task?\n\n{task_text}",
-                reply_markup=keyboard
-            )
+            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
+                task_text = checklists[role][cl_name][task_index]
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_task:{task_index}")],
+                    [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+                ])
+                
+                await callback.message.answer(
+                    f"⚠️ Are you sure you want to delete this task?\n\n{task_text}",
+                    reply_markup=keyboard
+                )
+            else:
+                await callback.message.answer("❌ Task not found!")
             
         # Confirm task deletion
         elif data.startswith("confirm_delete_task:"):
             task_index = int(data.split(":")[1])
             data = await state.get_data()
-            role = data['role']
-            cl_name = data['checklist']
+            role = data.get('role')
+            cl_name = data.get('checklist')
             
-            if task_index < len(checklists[role][cl_name]):
+            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
                 deleted_task = checklists[role][cl_name].pop(task_index)
                 save_checklists()
                 await callback.message.answer(f"✅ Task deleted:\n{deleted_task}")
-                await show_checklist_editor(callback.message, state, role, cl_name)
+                await show_checklist_editor(callback, state, role, cl_name)
             else:
-                await callback.message.answer("❌ Task index out of range!")
+                await callback.message.answer("❌ Task not found!")
             
-            await state.set_state(None)
+            await state.set_state(AdminStates.EDIT_CHECKLIST)
             
         # Delete checklist confirmation
         elif data.startswith("delete_cl:"):
@@ -744,26 +621,30 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.CONFIRM_DELETE_CHECKLIST)
             await state.update_data(delete_cl_name=cl_name)
             
-            role = (await state.get_data())['role']
+            data = await state.get_data()
+            role = data.get('role')
             
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_cl:{cl_name}")],
-                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
-            ])
-            
-            await callback.message.answer(
-                f"⚠️ Are you sure you want to delete the checklist '{cl_name}'?",
-                reply_markup=keyboard
-            )
+            if role:
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_cl:{cl_name}")],
+                    [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+                ])
+                
+                await callback.message.answer(
+                    f"⚠️ Are you sure you want to delete the checklist '{cl_name}'?",
+                    reply_markup=keyboard
+                )
+            else:
+                await callback.message.answer("❌ Role not selected!")
             
         # Confirm checklist deletion
         elif data.startswith("confirm_delete_cl:"):
             cl_name = data.split(":")[1]
             data = await state.get_data()
-            role = data['role']
+            role = data.get('role')
             
-            if cl_name in checklists[role]:
-                deleted_checklist = checklists[role].pop(cl_name)
+            if role and cl_name in checklists.get(role, {}):
+                checklists[role].pop(cl_name)
                 save_checklists()
                 await callback.message.answer(f"✅ Checklist '{cl_name}' deleted!")
                 
@@ -774,30 +655,42 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                     keyboard.inline_keyboard.append([
                         InlineKeyboardButton(text=role_name, callback_data=f"admin_role:{role_name}")
                     ])
-                await callback.message.answer("Select a role:", reply_markup=keyboard)
+                    
+                keyboard.inline_keyboard.append([
+                    InlineKeyboardButton(text="⬅️ Cancel", callback_data="admin_cancel")
+                ])
+                
+                await callback.message.edit_text("Select a role to edit checklists:", reply_markup=keyboard)
             else:
                 await callback.message.answer("❌ Checklist not found!")
             
-            await state.set_state(None)
-            
         # Cancel delete operation
         elif data == "cancel_delete":
-            await state.set_state(None)
-            await callback.message.answer("❌ Deletion canceled.")
-            role = (await state.get_data())['role']
-            cl_name = (await state.get_data())['checklist']
-            await show_checklist_editor(callback.message, state, role, cl_name)
+            data = await state.get_data()
+            role = data.get('role')
+            cl_name = data.get('checklist')
+            
+            if role and cl_name:
+                await state.set_state(AdminStates.EDIT_CHECKLIST)
+                await show_checklist_editor(callback, state, role, cl_name)
+            else:
+                await callback.message.answer("❌ Operation canceled.")
+                await state.set_state(None)
         
         # Back to checklists
         elif data == "back_to_checklists":
-            role = (await state.get_data())['role']
-            await state.set_state(AdminStates.SELECT_CHECKLIST)
+            data = await state.get_data()
+            role = data.get('role')
             
-            keyboard = checklist_keyboard(role)
-            await callback.message.edit_text(
-                f"Select a checklist for {role}:",
-                reply_markup=keyboard
-            )
+            if role:
+                await state.set_state(AdminStates.SELECT_CHECKLIST)
+                keyboard = checklist_keyboard(role)
+                await callback.message.edit_text(
+                    f"Select a checklist for {role}:",
+                    reply_markup=keyboard
+                )
+            else:
+                await callback.message.answer("❌ Role not selected!")
         
         # Back to roles
         elif data == "back_to_roles":
@@ -844,7 +737,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 try:
                     with open(report_file, 'r') as f:
                         report = json.load(f)
-                        # Исправление: Правильный подсчет выполненных/невыполненных задач
                         done_count = sum(1 for _, status in report['results'] if status == 'Done')
                         not_done_count = sum(1 for _, status in report['results'] if status != 'Done')
                         
@@ -898,8 +790,11 @@ async def callback_handler(callback: types.CallbackQuery):
 
         if data.startswith("role:"):
             role = data.split(":")[1]
-            user_sessions[user_id]["role"] = role
-            user_sessions[user_id]["step"] = "checklist"
+            user_sessions[user_id] = {
+                "step": "checklist",
+                "role": role,
+                "name": user_sessions.get(user_id, {}).get("name", "")
+            }
             
             # Create checklist selection buttons
             keyboard = InlineKeyboardMarkup(inline_keyboard=[])
@@ -913,16 +808,23 @@ async def callback_handler(callback: types.CallbackQuery):
         elif data.startswith("checklist:"):
             cl_name = data.split(":")[1]
             role = user_sessions[user_id]["role"]
-            tasks = checklists[role][cl_name]
-            user_sessions[user_id]["tasks"] = tasks
-            user_sessions[user_id]["current_task"] = 0
-            user_sessions[user_id]["results"] = []
-            user_sessions[user_id]["checklist"] = cl_name
-            await send_task(
-                bot=callback.bot, 
-                chat_id=callback.message.chat.id, 
-                user_id=user_id
-            )
+            
+            if role in checklists and cl_name in checklists[role]:
+                tasks = checklists[role][cl_name]
+                user_sessions[user_id].update({
+                    "tasks": tasks,
+                    "current_task": 0,
+                    "results": [],
+                    "checklist": cl_name
+                })
+                
+                await send_task(
+                    bot=callback.bot, 
+                    chat_id=callback.message.chat.id, 
+                    user_id=user_id
+                )
+            else:
+                await callback.message.answer("❌ Checklist not found!")
 
         elif data.startswith("task:"):
             result = data.split(":")[1]
@@ -952,7 +854,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
         session = user_sessions[user_id]
         task_text = session["tasks"][session["current_task"]]
         
-        # Create response buttons with NAMED arguments
+        # Create response buttons
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="✅ Done", callback_data="task:Done"),
             InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not Done")
@@ -1082,7 +984,7 @@ def main():
         app.router.add_get("/", health_check)
         app.router.add_get("/health", health_check)
         
-        # Webhook handler
+        # Webhook handler with timeout
         async def webhook_handler(request: web.Request) -> web.Response:
             try:
                 logger.info(f"Incoming webhook request to: {request.path}")
@@ -1095,11 +997,16 @@ def main():
                     logger.warning(f"Invalid secret token! Expected: {SECRET_TOKEN}, Got: {secret_token}")
                     return web.Response(status=403, text="Forbidden")
                 
-                # Process update
-                return await SimpleRequestHandler(
-                    dispatcher=dp,
-                    bot=bot,
-                ).handle(request)
+                # Process update with timeout
+                try:
+                    return await asyncio.wait_for(
+                        SimpleRequestHandler(dispatcher=dp, bot=bot).handle(request),
+                        timeout=10  # 10 seconds timeout
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Request processing timed out")
+                    return web.Response(status=504, text="Gateway Timeout")
+                    
             except Exception as e:
                 logger.error(f"Critical error in webhook handler: {e}\n{traceback.format_exc()}")
                 return web.Response(status=500, text="Internal Server Error")
