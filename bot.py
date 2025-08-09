@@ -511,7 +511,11 @@ async def callback_handler(callback: types.CallbackQuery):
             user_sessions[user_id]["tasks"] = tasks
             user_sessions[user_id]["current_task"] = 0
             user_sessions[user_id]["results"] = []
-            await send_task(callback.message, user_id)
+            await send_task(
+                bot=callback.bot, 
+                chat_id=callback.message.chat.id, 
+                user_id=user_id
+            )
 
         elif data.startswith("task:"):
             result = data.split(":")[1]
@@ -520,32 +524,41 @@ async def callback_handler(callback: types.CallbackQuery):
             session["current_task"] += 1
             
             if session["current_task"] < len(session["tasks"]):
-                await send_task(callback.message, user_id)
+                await send_task(
+                    bot=callback.bot, 
+                    chat_id=callback.message.chat.id, 
+                    user_id=user_id
+                )
             else:
                 await finish_checklist(callback.message, user_id)
     except Exception as e:
         logger.error(f"Error in callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Processing error. Please restart with /start command.")
 
-async def send_task(message, user_id):
-    """Send task to user"""
+async def send_task(bot: Bot, chat_id: int, user_id: int):
+    """Send task to user using bot instance"""
     try:
+        if user_id not in user_sessions:
+            await bot.send_message(chat_id, "❌ Session expired. Please restart with /start")
+            return
+            
         session = user_sessions[user_id]
         task_text = session["tasks"][session["current_task"]]
         
-        # Create response buttons
+        # Create response buttons with NAMED arguments (FIXED)
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton("✅ Done", callback_data="task:Done"),
-            InlineKeyboardButton("❌ Not Done", callback_data="task:Not Done")
+            InlineKeyboardButton(text="✅ Done", callback_data="task:Done"),
+            InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not Done")
         ]])
         
-        await message.answer(
-            f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", 
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"Task {session['current_task']+1}/{len(session['tasks'])}:\n{task_text}", 
             reply_markup=keyboard
         )
     except Exception as e:
         logger.error(f"Error in send_task: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Error loading tasks. Please try again later.")
+        await bot.send_message(chat_id, "❌ Error loading tasks. Please try again later.")
 
 async def finish_checklist(message, user_id):
     """Complete checklist and send report"""
