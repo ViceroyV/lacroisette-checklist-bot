@@ -740,6 +740,10 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         await callback.answer()
         data = callback.data
         
+        # Log current state
+        current_state = await state.get_state()
+        logger.info(f"Current state: {current_state}")
+        
         # Admin role selection
         if data.startswith("admin_role:"):
             role = data.split(":")[1]
