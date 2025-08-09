@@ -372,7 +372,7 @@ def is_admin(user_id):
 
 def get_user_password(user_id):
     """Get password for user or default if not set"""
-    return user_passwords.get(str(user_id), DEFAULT_PASSWORD
+    return user_passwords.get(str(user_id), DEFAULT_PASSWORD)
 
 def checklist_keyboard(role):
     """Create checklist selection keyboard"""
