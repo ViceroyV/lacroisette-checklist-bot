@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 DEFAULT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
-PASSWORD_FILE = "bot_password.txt"
+PASSWORD_FILE = "user_passwords.json"
 
 # Render settings
 WEB_SERVER_HOST = "0.0.0.0"
@@ -52,34 +52,34 @@ SECRET_TOKEN = API_KEY[:32]  # Use first 32 characters of API key
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
 # Password management
-def load_password():
-    """Load password from file or use default"""
+def load_passwords():
+    """Load passwords from file or return empty dict"""
     try:
         if os.path.exists(PASSWORD_FILE):
             with open(PASSWORD_FILE, 'r') as f:
-                return f.read().strip()
-        return DEFAULT_PASSWORD
+                return json.load(f)
+        return {}
     except Exception:
-        return DEFAULT_PASSWORD
+        return {}
 
-def save_password(password):
-    """Save password to file"""
+def save_passwords(passwords):
+    """Save passwords to file"""
     with open(PASSWORD_FILE, 'w') as f:
-        f.write(password)
-    logger.info(f"Password updated and saved to {PASSWORD_FILE}")
+        json.dump(passwords, f, indent=2)
+    logger.info(f"Passwords saved to {PASSWORD_FILE}")
 
 # Initial password setup
-BOT_PASSWORD = load_password()
+user_passwords = load_passwords()
 
 # Diagnostics
 logger.info("===== BOT CONFIGURATION =====")
 logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
 logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
 logger.info(f"INITIAL_PASSWORD: {DEFAULT_PASSWORD}")
-logger.info(f"CURRENT_PASSWORD: {BOT_PASSWORD}")
 logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
 logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
 logger.info(f"SECRET_TOKEN: {SECRET_TOKEN}")
+logger.info(f"Loaded {len(user_passwords)} user passwords")
 logger.info("=============================")
 
 # ========== ADMIN STATES ==========
@@ -97,6 +97,8 @@ class AdminStates(StatesGroup):
     CONFIRM_DELETE_CHECKLIST = State()
     VIEW_REPORTS = State()
     SET_NEW_PASSWORD = State()
+    SET_USER_PASSWORD = State()
+    SELECT_USER_FOR_PASSWORD = State()
 
 # ========== CHECKLIST DATA ==========
 def load_checklists():
@@ -368,6 +370,10 @@ def is_admin(user_id):
     """Check if user is admin"""
     return user_id in ADMIN_IDS
 
+def get_user_password(user_id):
+    """Get password for user or default if not set"""
+    return user_passwords.get(str(user_id), DEFAULT_PASSWORD)
+
 def checklist_keyboard(role):
     """Create checklist selection keyboard"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
@@ -481,6 +487,24 @@ def clear_reports():
             logger.error(f"Error deleting report {file}: {e}")
     return len(report_files)
 
+def get_users_from_reports():
+    """Get list of users from reports"""
+    users = {}
+    report_files = get_reports(100)  # Get last 100 reports
+    
+    for report_file in report_files:
+        try:
+            with open(report_file, 'r') as f:
+                report = json.load(f)
+                user_id = report['user_id']
+                user_name = report['user_name']
+                if user_id not in users:
+                    users[user_id] = user_name
+        except:
+            continue
+    
+    return users
+
 # ========== COMMAND HANDLERS ==========
 async def start_handler(message: types.Message):
     """Handler for /start command"""
@@ -500,15 +524,24 @@ async def start_handler(message: types.Message):
                 "/start - Show this message\n"
                 "/edit_checklists - Edit checklists\n"
                 "/reports - Manage reports\n"
-                "/generate_password - Generate new global password\n"
-                "/change_password - Change user password\n"
+                "/set_password - Set password for a user\n"
+                "/generate_password - Generate new password for yourself\n"
                 "\nPlease enter the password to use the bot:"
             )
         else:
-            await message.answer("🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:")
+            await message.answer("🚀 Welcome to La Croisette Checklist Bot!\nPlease enter your password:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Bot error. Please try again later.")
+
+async def get_my_id_handler(message: types.Message):
+    """Handler for /my_id command"""
+    try:
+        user_id = message.from_user.id
+        await message.answer(f"Your user ID: {user_id}\nShare this with admin to set your password.")
+    except Exception as e:
+        logger.error(f"Error in get_my_id_handler: {e}")
+        await message.answer("❌ Error getting your ID.")
 
 async def message_handler(message: types.Message, state: FSMContext):
     """Handler for text messages"""
@@ -600,19 +633,46 @@ async def message_handler(message: types.Message, state: FSMContext):
                 await state.set_state(None)
                 return
                 
-            # Change password state
-            elif current_state == AdminStates.SET_NEW_PASSWORD.state:
-                global BOT_PASSWORD
-                BOT_PASSWORD = text
-                save_password(text)
+            # Set user password state
+            elif current_state == AdminStates.SET_USER_PASSWORD.state:
+                parts = text.split(maxsplit=1)
+                if len(parts) != 2:
+                    await message.answer("❌ Invalid format. Please use: <user_id> <password>")
+                    return
                 
-                await message.answer(f"✅ Password changed to: {text}")
+                try:
+                    target_user_id = int(parts[0])
+                    new_password = parts[1]
+                    
+                    # Update password
+                    global user_passwords
+                    user_passwords[str(target_user_id)] = new_password
+                    save_passwords(user_passwords)
+                    
+                    await message.answer(f"✅ Password for user {target_user_id} set to: {new_password}")
+                except ValueError:
+                    await message.answer("❌ Invalid user ID. Must be a number.")
+                
+                await state.set_state(None)
+                return
+                
+            # Set own password state
+            elif current_state == AdminStates.SET_NEW_PASSWORD.state:
+                # Update password for current user
+                global user_passwords
+                user_passwords[str(user_id)] = text
+                save_passwords(user_passwords)
+                
+                await message.answer(f"✅ Your password changed to: {text}")
                 await state.set_state(None)
                 return
 
         # Normal user flow
         if user_id not in user_sessions:
-            if text == BOT_PASSWORD:
+            # Get user's password (individual or default)
+            user_password = get_user_password(user_id)
+            
+            if text == user_password:
                 user_sessions[user_id] = {"step": "name"}
                 await message.answer("✅ Password accepted! Please enter your name:")
             else:
@@ -673,28 +733,33 @@ async def generate_password_handler(message: types.Message, state: FSMContext):
         await message.answer("❌ You don't have permission to use this command.")
         return
         
-    await state.set_state(AdminStates.GENERATE_PASSWORD)
+    # Generate new password for current admin
+    new_password = generate_password()
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🔒 Generate New Password", callback_data="gen_pass_confirm"),
-        InlineKeyboardButton(text="❌ Cancel", callback_data="admin_cancel")
-    ]])
+    # Update password
+    global user_passwords
+    user_passwords[str(message.from_user.id)] = new_password
+    save_passwords(user_passwords)
     
     await message.answer(
-        "⚠️ This will generate a new password for all users.\n"
-        "Current users will need to re-authenticate.\n\n"
-        "Are you sure you want to generate a new password?",
-        reply_markup=keyboard
+        f"✅ Your new password:\n<code>{new_password}</code>\n\n"
+        "Please save this password. You will need it to authenticate.",
+        parse_mode="HTML"
     )
-    
-async def change_password_handler(message: types.Message, state: FSMContext):
-    """Handler for /change_password command"""
+
+async def set_password_handler(message: types.Message, state: FSMContext):
+    """Handler for /set_password command"""
     if not is_admin(message.from_user.id):
         await message.answer("❌ You don't have permission to use this command.")
         return
         
-    await state.set_state(AdminStates.SET_NEW_PASSWORD)
-    await message.answer("Please enter the new password for all users:")
+    await state.set_state(AdminStates.SET_USER_PASSWORD)
+    await message.answer(
+        "Please enter user ID and new password separated by space:\n"
+        "Example: <code>123456789 mypassword</code>\n\n"
+        "You can get user IDs from reports or ask users to use /my_id command.",
+        parse_mode="HTML"
+    )
 
 # ========== ADMIN EDITING FLOW ==========
 async def show_checklist_editor(message, state, role, cl_name):
@@ -939,20 +1004,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 reply_markup=keyboard
             )
         
-        # Generate password confirmation
-        elif data == "gen_pass_confirm":
-            global BOT_PASSWORD
-            new_password = generate_password()
-            BOT_PASSWORD = new_password
-            save_password(new_password)
-            
-            await callback.message.answer(
-                f"✅ New password generated:\n<code>{new_password}</code>\n\n"
-                "Please save this password. Users will need it to authenticate.",
-                parse_mode="HTML"
-            )
-            await state.set_state(None)
-        
         # View reports
         elif data == "view_reports":
             reports = get_reports(10)
@@ -1195,7 +1246,8 @@ def main():
         dp.message.register(edit_checklists_handler, Command("edit_checklists"))
         dp.message.register(reports_handler, Command("reports"))
         dp.message.register(generate_password_handler, Command("generate_password"))
-        dp.message.register(change_password_handler, Command("change_password"))
+        dp.message.register(set_password_handler, Command("set_password"))
+        dp.message.register(get_my_id_handler, Command("my_id"))
         dp.message.register(message_handler)
         
         # Callback handlers
