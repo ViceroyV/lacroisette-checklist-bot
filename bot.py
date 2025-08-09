@@ -51,7 +51,7 @@ SECRET_TOKEN = API_KEY[:32]  # Use first 32 characters of API key
 # Create reports directory if not exists
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-# Load or create password
+# Password management
 def load_password():
     """Load password from file or use default"""
     try:
@@ -96,8 +96,6 @@ class AdminStates(StatesGroup):
     CONFIRM_DELETE_TASK = State()
     CONFIRM_DELETE_CHECKLIST = State()
     VIEW_REPORTS = State()
-    CHANGE_PASSWORD = State()
-    SELECT_USER_FOR_PASSWORD = State()
     SET_NEW_PASSWORD = State()
 
 # ========== CHECKLIST DATA ==========
@@ -604,10 +602,6 @@ async def message_handler(message: types.Message, state: FSMContext):
                 
             # Change password state
             elif current_state == AdminStates.SET_NEW_PASSWORD.state:
-                data = await state.get_data()
-                user_id = data.get('user_id')
-                
-                # Update password for user
                 global BOT_PASSWORD
                 BOT_PASSWORD = text
                 save_password(text)
@@ -761,7 +755,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         # Checklist selection
         elif data.startswith("cl:"):
             cl_name = data.split(":")[1]
-            role = (await state.get_data()).get('role')
+            data_state = await state.get_data()
+            role = data_state.get('role')
             
             if role:
                 await show_checklist_editor(callback, state, role, cl_name)
