@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 # ========== CONFIGURATION ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
-BOT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
+DEFAULT_PASSWORD = os.getenv("BOT_PASSWORD", "default_password")
+PASSWORD_FILE = "bot_password.txt"
 
 # Render settings
 WEB_SERVER_HOST = "0.0.0.0"
@@ -50,11 +51,32 @@ SECRET_TOKEN = API_KEY[:32]  # Use first 32 characters of API key
 # Create reports directory if not exists
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
+# Load or create password
+def load_password():
+    """Load password from file or use default"""
+    try:
+        if os.path.exists(PASSWORD_FILE):
+            with open(PASSWORD_FILE, 'r') as f:
+                return f.read().strip()
+        return DEFAULT_PASSWORD
+    except Exception:
+        return DEFAULT_PASSWORD
+
+def save_password(password):
+    """Save password to file"""
+    with open(PASSWORD_FILE, 'w') as f:
+        f.write(password)
+    logger.info(f"Password updated and saved to {PASSWORD_FILE}")
+
+# Initial password setup
+BOT_PASSWORD = load_password()
+
 # Diagnostics
 logger.info("===== BOT CONFIGURATION =====")
 logger.info(f"TELEGRAM_TOKEN: {'set' if TELEGRAM_TOKEN else 'NOT SET!'}")
 logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
-logger.info(f"BOT_PASSWORD: {'set' if BOT_PASSWORD else 'NOT SET!'}")
+logger.info(f"INITIAL_PASSWORD: {DEFAULT_PASSWORD}")
+logger.info(f"CURRENT_PASSWORD: {BOT_PASSWORD}")
 logger.info(f"BASE_WEBHOOK_URL: {BASE_WEBHOOK_URL or 'NOT SET!'}")
 logger.info(f"Server will run on: {WEB_SERVER_HOST}:{WEB_SERVER_PORT}")
 logger.info(f"SECRET_TOKEN: {SECRET_TOKEN}")
@@ -74,6 +96,9 @@ class AdminStates(StatesGroup):
     CONFIRM_DELETE_TASK = State()
     CONFIRM_DELETE_CHECKLIST = State()
     VIEW_REPORTS = State()
+    CHANGE_PASSWORD = State()
+    SELECT_USER_FOR_PASSWORD = State()
+    SET_NEW_PASSWORD = State()
 
 # ========== CHECKLIST DATA ==========
 def load_checklists():
@@ -378,9 +403,6 @@ def tasks_keyboard(tasks):
         InlineKeyboardButton(text="📝 Rename Checklist", callback_data="rename_checklist")
     ])
     keyboard.inline_keyboard.append([
-        InlineKeyboardButton(text="❌ Cancel Editing", callback_data="edit_cancel")
-    ])
-    keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="⬅️ Back to Checklists", callback_data="back_to_checklists")
     ])
     return keyboard
@@ -480,7 +502,8 @@ async def start_handler(message: types.Message):
                 "/start - Show this message\n"
                 "/edit_checklists - Edit checklists\n"
                 "/reports - Manage reports\n"
-                "/generate_password - Generate new password\n"
+                "/generate_password - Generate new global password\n"
+                "/change_password - Change user password\n"
                 "\nPlease enter the password to use the bot:"
             )
         else:
@@ -499,6 +522,7 @@ async def message_handler(message: types.Message, state: FSMContext):
         # Check if we're in an admin state
         current_state = await state.get_state()
         if current_state:
+            # Add task state
             if current_state == AdminStates.ADD_TASK.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -509,12 +533,12 @@ async def message_handler(message: types.Message, state: FSMContext):
                     save_checklists()
                     await message.answer(f"✅ Task added to {cl_name}!")
                     await show_checklist_editor(message, state, role, cl_name)
-                    await state.set_state(AdminStates.EDIT_CHECKLIST)
                 else:
                     await message.answer("❌ Error: Role or checklist not found!")
                     await state.set_state(None)
                 return
                 
+            # Edit task state
             elif current_state == AdminStates.EDIT_TASK.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -527,7 +551,6 @@ async def message_handler(message: types.Message, state: FSMContext):
                         save_checklists()
                         await message.answer(f"✅ Task updated!")
                         await show_checklist_editor(message, state, role, cl_name)
-                        await state.set_state(AdminStates.EDIT_CHECKLIST)
                     else:
                         await message.answer("❌ Task index out of range!")
                 else:
@@ -536,6 +559,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 await state.set_state(None)
                 return
                 
+            # Rename checklist state
             elif current_state == AdminStates.RENAME_CHECKLIST.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -549,15 +573,15 @@ async def message_handler(message: types.Message, state: FSMContext):
                         save_checklists()
                         await message.answer(f"✅ Checklist renamed to {new_name}!")
                         await show_checklist_editor(message, state, role, new_name)
-                        await state.set_state(AdminStates.EDIT_CHECKLIST)
                     else:
                         await message.answer("❌ Checklist not found!")
                 else:
                     await message.answer("❌ Error: Role or checklist name missing!")
                 
-                await state.set_state(AdminStates.EDIT_CHECKLIST)
+                await state.set_state(None)
                 return
                 
+            # New checklist state
             elif current_state == AdminStates.NEW_CHECKLIST.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -570,13 +594,26 @@ async def message_handler(message: types.Message, state: FSMContext):
                         save_checklists()
                         await message.answer(f"✅ Checklist {cl_name} created!")
                         await show_checklist_editor(message, state, role, cl_name)
-                        await state.set_state(AdminStates.EDIT_CHECKLIST)
                     else:
                         await message.answer("❌ Checklist with this name already exists!")
                 else:
                     await message.answer("❌ Error: Role not found!")
                 
-                await state.set_state(AdminStates.EDIT_CHECKLIST)
+                await state.set_state(None)
+                return
+                
+            # Change password state
+            elif current_state == AdminStates.SET_NEW_PASSWORD.state:
+                data = await state.get_data()
+                user_id = data.get('user_id')
+                
+                # Update password for user
+                global BOT_PASSWORD
+                BOT_PASSWORD = text
+                save_password(text)
+                
+                await message.answer(f"✅ Password changed to: {text}")
+                await state.set_state(None)
                 return
 
         # Normal user flow
@@ -655,6 +692,15 @@ async def generate_password_handler(message: types.Message, state: FSMContext):
         "Are you sure you want to generate a new password?",
         reply_markup=keyboard
     )
+    
+async def change_password_handler(message: types.Message, state: FSMContext):
+    """Handler for /change_password command"""
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ You don't have permission to use this command.")
+        return
+        
+    await state.set_state(AdminStates.SET_NEW_PASSWORD)
+    await message.answer("Please enter the new password for all users:")
 
 # ========== ADMIN EDITING FLOW ==========
 async def show_checklist_editor(message, state, role, cl_name):
@@ -860,23 +906,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.answer("❌ Operation canceled.")
                 await state.set_state(None)
         
-        # Cancel editing
-        elif data == "edit_cancel":
-            data_state = await state.get_data()
-            role = data_state.get('role')
-            cl_name = data_state.get('checklist')
-            
-            if role and cl_name:
-                await state.set_state(AdminStates.SELECT_CHECKLIST)
-                keyboard = checklist_keyboard(role)
-                await callback.message.edit_text(
-                    f"Select a checklist for {role}:",
-                    reply_markup=keyboard
-                )
-            else:
-                await callback.message.answer("❌ Operation canceled.")
-                await state.set_state(None)
-        
         # Back to checklists
         elif data == "back_to_checklists":
             data_state = await state.get_data()
@@ -916,8 +945,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             global BOT_PASSWORD
             new_password = generate_password()
             BOT_PASSWORD = new_password
+            save_password(new_password)
             
-            # In a real app, you would save this to a persistent storage
             await callback.message.answer(
                 f"✅ New password generated:\n<code>{new_password}</code>\n\n"
                 "Please save this password. Users will need it to authenticate.",
@@ -1167,6 +1196,7 @@ def main():
         dp.message.register(edit_checklists_handler, Command("edit_checklists"))
         dp.message.register(reports_handler, Command("reports"))
         dp.message.register(generate_password_handler, Command("generate_password"))
+        dp.message.register(change_password_handler, Command("change_password"))
         dp.message.register(message_handler)
         
         # Callback handlers
