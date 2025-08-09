@@ -669,12 +669,16 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 try:
                     with open(report_file, 'r') as f:
                         report = json.load(f)
+                        # Исправление: Правильный подсчет выполненных/невыполненных задач
+                        done_count = sum(1 for _, status in report['results'] if status == 'Done')
+                        not_done_count = sum(1 for _, status in report['results'] if status != 'Done')
+                        
                         response += (
                             f"{i}. {report['date']}\n"
                             f"👤 {report['user_name']} (ID: {report['user_id']})\n"
                             f"🏷️ {report['role']} - {report['checklist']}\n"
-                            f"✅ Done: {sum(1 for _, status in report['results'] if status == 'Done' else 0}\n"
-                            f"❌ Not Done: {sum(1 for _, status in report['results'] if status != 'Done' else 0}\n\n"
+                            f"✅ Done: {done_count}\n"
+                            f"❌ Not Done: {not_done_count}\n\n"
                         )
                 except Exception as e:
                     logger.error(f"Error reading report {report_file}: {e}")
@@ -773,7 +777,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
         session = user_sessions[user_id]
         task_text = session["tasks"][session["current_task"]]
         
-        # Create response buttons with NAMED arguments (FIXED)
+        # Create response buttons with NAMED arguments
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="✅ Done", callback_data="task:Done"),
             InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not Done")
