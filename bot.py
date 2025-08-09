@@ -327,7 +327,7 @@ def load_checklists():
             "Turn off dishwasher and clean filters.",
             "Empty and clean sinks.",
             "Store all cleaned dishes.",
-            "Mop dishwashing area."
+            "Mopping dishwashing area."
         ]
     },
     "Maintenance": {
@@ -509,6 +509,7 @@ def get_users_from_reports():
 async def start_handler(message: types.Message):
     """Handler for /start command"""
     try:
+        global user_sessions
         logger.info(f"Received /start from {message.from_user.id}")
         
         # Reset session on each /start
@@ -546,6 +547,7 @@ async def get_my_id_handler(message: types.Message):
 async def message_handler(message: types.Message, state: FSMContext):
     """Handler for text messages"""
     try:
+        global user_passwords, user_sessions
         logger.info(f"Message from {message.from_user.id}: {message.text[:50]}")
         user_id = message.from_user.id
         text = message.text.strip()
@@ -645,7 +647,6 @@ async def message_handler(message: types.Message, state: FSMContext):
                     new_password = parts[1]
                     
                     # Update password
-                    global user_passwords
                     user_passwords[str(target_user_id)] = new_password
                     save_passwords(user_passwords)
                     
@@ -659,7 +660,6 @@ async def message_handler(message: types.Message, state: FSMContext):
             # Set own password state
             elif current_state == AdminStates.SET_NEW_PASSWORD.state:
                 # Update password for current user
-                global user_passwords
                 user_passwords[str(user_id)] = text
                 save_passwords(user_passwords)
                 
@@ -1063,6 +1063,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
 async def callback_handler(callback: types.CallbackQuery):
     """Handler for user callback queries"""
     try:
+        global user_sessions
         await callback.answer()
         user_id = callback.from_user.id
         data = callback.data
@@ -1151,6 +1152,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
 async def finish_checklist(message, user_id):
     """Complete checklist and send report"""
     try:
+        global user_sessions
         session = user_sessions[user_id]
         report = f"📋 Checklist Report\n👤 Name: {session['name']}\nRole: {session['role']}\nChecklist: {session['checklist']}\n\n"
         
