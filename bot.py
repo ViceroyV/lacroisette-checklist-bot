@@ -89,140 +89,140 @@ def load_checklists():
     except (FileNotFoundError, json.JSONDecodeError):
         # Return default checklists if file doesn't exist
         return {
-           "Bartender": {
-        "Opening Shift": [
-            "Get the keys and open the bar shutters. Clean shutters and locks.",
-            "Turn on the lights in the bar area.",
-            "Check that all bar equipment is working.",
-            "Turn on background music.",
-            "Fill ice bins with fresh ice.",
-            "Prepare all bar tools (shakers, strainers, spoons, etc.).",
-            "Restock bottles and ingredients.",
-            "Check beer kegs and replace if needed.",
-            "Wipe the bar counter and shelves.",
-            "Prepare garnish trays (lemons, limes, herbs, etc.).",
-            "Check and clean glasses.",
-            "Ensure the cash register is ready and has enough change.",
-            "Test the card payment terminal.",
-            "Refill napkins, straws, and stirrers.",
-            "Check fridges for drinks and refill if necessary.",
-            "Make sure the menu is clean and complete."
-        ],
-        "Closing Shift": [
-            "Remove and discard all leftover garnish.",
-            "Wash and store all bar tools (shakers, spoons, strainers, etc.).",
-            "Empty and clean ice bins.",
-            "Wipe the bar counter and shelves.",
-            "Check and note stock levels for the next day.",
-            "Close beer taps and turn off the gas supply.",
-            "Switch off all bar equipment.",
-            "Clean fridges inside and outside.",
-            "Lock alcohol storage.",
-            "Turn off lights and music.",
-            "Close and lock the bar shutters.",
-            "Return keys to the manager."
-        ]
-    },
-    "Cashier": {
-        "Opening Shift": [
-            "Get the keys and open the cashier station.",
-            "Turn on the cashier lights.",
-            "Switch on the cash register.",
-            "Count the starting cash balance and record it.",
-            "Check the payment terminal (card machine) is working.",
-            "Make sure receipt paper is loaded.",
-            "Prepare coins and small bills for change.",
-            "Ensure the working area is clean and organized.",
-            "Check the menu display and update if needed.",
-            "Prepare order slips and pens."
-        ],
-        "Closing Shift": [
-            "Count the final cash balance and record it.",
-            "Compare with the starting balance and sales report.",
-            "Close and log out from the cash register.",
-            "Turn off the payment terminal (card machine).",
-            "Remove and store receipt paper if needed.",
-            "Clean and organize the cashier station.",
-            "Lock the cash drawer.",
-            "Turn off cashier lights.",
-            "Close and lock the cashier station.",
-            "Return keys to the manager."
-        ]
-    },
-    "Manager": {
-        "Opening Shift": [
-            "Open the main entrance and turn off the alarm (if applicable).",
-            "Turn on all restaurant lights.",
-            "Check that all areas are clean and tidy (dining room, bar, kitchen, toilets).",
-            "Make sure all equipment is working (coffee machine, fridges, POS, etc.).",
-            "Confirm staff attendance and assign tasks for the shift.",
-            "Review reservations for the day.",
-            "Ensure menus are clean and complete.",
-            "Check stock of key items (coffee, drinks, napkins, etc.).",
-            "Coordinate with kitchen on specials and menu availability.",
-            "Open doors for service and greet first guests if necessary."
-        ],
-        "Closing Shift": [
-            "Check that all guests have left the premises.",
-            "Ensure all cash from the cashier is counted and recorded.",
-            "Verify sales reports from POS.",
-            "Lock the cash in the safe.",
-            "Confirm all areas are clean (dining room, bar, kitchen, toilets).",
-            "Turn off all lights and equipment.",
-            "Check that doors and windows are closed and locked.",
-            "Activate the alarm (if applicable).",
-            "Collect keys and store them securely.",
-            "Complete the end-of-day report."
-        ]
-    },
-    "Leader": {
-        "Opening Shift": [
-            "Arrive 15 minutes before shift start.",
-            "Check staff attendance and appearance.",
-            "Ensure all stations are ready for service.",
-            "Review special offers and daily menu with staff.",
-            "Distribute tasks between team members.",
-            "Check that stock levels are adequate.",
-            "Test POS terminals at all stations.",
-            "Make sure uniforms are clean and neat.",
-            "Walk through the restaurant to check readiness.",
-            "Report any issues to the manager."
-        ],
-        "Closing Shift": [
-            "Make sure all tables are cleared and cleaned.",
-            "Check bar and kitchen are cleaned and equipment is off.",
-            "Verify all doors and windows are closed.",
-            "Ensure rubbish is taken out.",
-            "Confirm final stock count for the day.",
-            "Collect any lost and found items.",
-            "Hand over keys to the manager.",
-            "Write a short report about the shift."
-        ]
-    },
-    "Waiter": {
-        "Opening Shift": [
-            "Set tables with cutlery, glasses, and napkins.",
-            "Refill water bottles for service.",
-            "Check menu condition and replace if damaged.",
-            "Make sure the serving station is stocked.",
-            "Wipe tables and chairs.",
-            "Prepare condiment trays (salt, pepper, sauces).",
-            "Test POS terminal.",
-            "Make sure trays and service tools are clean.",
-            "Check that the dining area is tidy."
-        ],
-        "Closing Shift": [
-            "Clear and wipe all tables.",
-            "Return cutlery, glasses, and plates to the kitchen.",
-            "Clean condiment trays and store them.",
-            "Wipe chairs and tables.",
-            "Organize serving station for the next day.",
-            "Empty rubbish bins.",
-            "Turn off lights in the dining area.",
-            "Store menus."
-        ]
-    },
-
+            "Bartender": {
+                "Opening Shift": [
+                    "Get the keys and open the bar shutters. Clean shutters and locks.",
+                    "Turn on the lights in the bar area.",
+                    "Check that all bar equipment is working.",
+                    "Turn on background music.",
+                    "Fill ice bins with fresh ice.",
+                    "Prepare all bar tools (shakers, strainers, spoons, etc.).",
+                    "Restock bottles and ingredients.",
+                    "Check beer kegs and replace if needed.",
+                    "Wipe the bar counter and shelves.",
+                    "Prepare garnish trays (lemons, limes, herbs, etc.).",
+                    "Check and clean glasses.",
+                    "Ensure the cash register is ready and has enough change.",
+                    "Test the card payment terminal.",
+                    "Refill napkins, straws, and stirrers.",
+                    "Check fridges for drinks and refill if necessary.",
+                    "Make sure the menu is clean and complete."
+                ],
+                "Closing Shift": [
+                    "Remove and discard all leftover garnish.",
+                    "Wash and store all bar tools (shakers, spoons, strainers, etc.).",
+                    "Empty and clean ice bins.",
+                    "Wipe the bar counter and shelves.",
+                    "Check and note stock levels for the next day.",
+                    "Close beer taps and turn off the gas supply.",
+                    "Switch off all bar equipment.",
+                    "Clean fridges inside and outside.",
+                    "Lock alcohol storage.",
+                    "Turn off lights and music.",
+                    "Close and lock the bar shutters.",
+                    "Return keys to the manager."
+                ]
+            },
+            "Cashier": {
+                "Opening Shift": [
+                    "Get the keys and open the cashier station.",
+                    "Turn on the cashier lights.",
+                    "Switch on the cash register.",
+                    "Count the starting cash balance and record it.",
+                    "Check the payment terminal (card machine) is working.",
+                    "Make sure receipt paper is loaded.",
+                    "Prepare coins and small bills for change.",
+                    "Ensure the working area is clean and organized.",
+                    "Check the menu display and update if needed.",
+                    "Prepare order slips and pens."
+                ],
+                "Closing Shift": [
+                    "Count the final cash balance and record it.",
+                    "Compare with the starting balance and sales report.",
+                    "Close and log out from the cash register.",
+                    "Turn off the payment terminal (card machine).",
+                    "Remove and store receipt paper if needed.",
+                    "Clean and organize the cashier station.",
+                    "Lock the cash drawer.",
+                    "Turn off cashier lights.",
+                    "Close and lock the cashier station.",
+                    "Return keys to the manager."
+                ]
+            },
+            "Manager": {
+                "Opening Shift": [
+                    "Open the main entrance and turn off the alarm (if applicable).",
+                    "Turn on all restaurant lights.",
+                    "Check that all areas are clean and tidy (dining room, bar, kitchen, toilets).",
+                    "Make sure all equipment is working (coffee machine, fridges, POS, etc.).",
+                    "Confirm staff attendance and assign tasks for the shift.",
+                    "Review reservations for the day.",
+                    "Ensure menus are clean and complete.",
+                    "Check stock of key items (coffee, drinks, napkins, etc.).",
+                    "Coordinate with kitchen on specials and menu availability.",
+                    "Open doors for service and greet first guests if necessary."
+                ],
+                "Closing Shift": [
+                    "Check that all guests have left the premises.",
+                    "Ensure all cash from the cashier is counted and recorded.",
+                    "Verify sales reports from POS.",
+                    "Lock the cash in the safe.",
+                    "Confirm all areas are clean (dining room, bar, kitchen, toilets).",
+                    "Turn off all lights and equipment.",
+                    "Check that doors and windows are closed and locked.",
+                    "Activate the alarm (if applicable).",
+                    "Collect keys and store them securely.",
+                    "Complete the end-of-day report."
+                ]
+            },
+            "Leader": {
+                "Opening Shift": [
+                    "Arrive 15 minutes before shift start.",
+                    "Check staff attendance and appearance.",
+                    "Ensure all stations are ready for service.",
+                    "Review special offers and daily menu with staff.",
+                    "Distribute tasks between team members.",
+                    "Check that stock levels are adequate.",
+                    "Test POS terminals at all stations.",
+                    "Make sure uniforms are clean and neat.",
+                    "Walk through the restaurant to check readiness.",
+                    "Report any issues to the manager."
+                ],
+                "Closing Shift": [
+                    "Make sure all tables are cleared and cleaned.",
+                    "Check bar and kitchen are cleaned and equipment is off.",
+                    "Verify all doors and windows are closed.",
+                    "Ensure rubbish is taken out.",
+                    "Confirm final stock count for the day.",
+                    "Collect any lost and found items.",
+                    "Hand over keys to the manager.",
+                    "Write a short report about the shift."
+                ]
+            },
+            "Waiter": {
+                "Opening Shift": [
+                    "Set tables with cutlery, glasses, and napkins.",
+                    "Refill water bottles for service.",
+                    "Check menu condition and replace if damaged.",
+                    "Make sure the serving station is stocked.",
+                    "Wipe tables and chairs.",
+                    "Prepare condiment trays (salt, pepper, sauces).",
+                    "Test POS terminal.",
+                    "Make sure trays and service tools are clean.",
+                    "Check that the dining area is tidy."
+                ],
+                "Closing Shift": [
+                    "Clear and wipe all tables.",
+                    "Return cutlery, glasses, and plates to the kitchen.",
+                    "Clean condiment trays and store them.",
+                    "Wipe chairs and tables.",
+                    "Organize serving station for the next day.",
+                    "Empty rubbish bins.",
+                    "Turn off lights in the dining area.",
+                    "Store menus."
+                ]
+            }
+        }
 
 def save_checklists():
     """Save checklists to file"""
@@ -707,7 +707,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         # Edit task
         elif data.startswith("edit_task:"):
-            task_index = int(data.split(":")[1]
+            task_index = int(data.split(":")[1])
             await state.set_state(AdminStates.EDIT_TASK)
             await state.update_data(task_index=task_index)
             
@@ -726,7 +726,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             
         # Delete task confirmation
         elif data.startswith("delete_task:"):
-            task_index = int(data.split(":")[1]
+            task_index = int(data.split(":")[1])
             await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
             await state.update_data(task_index=task_index)
             
