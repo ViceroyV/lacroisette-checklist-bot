@@ -16,6 +16,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiohttp import web
 import asyncio
 
@@ -703,11 +704,19 @@ async def show_checklist_editor(message, state, role, cl_name):
         
         # Try to edit message if possible, otherwise send new
         if isinstance(message, types.CallbackQuery):
-            await message.message.edit_text(
-                f"📝 Editing: {role} - {cl_name}\n\n"
-                f"Tasks ({len(tasks)}):",
-                reply_markup=keyboard
-            )
+            try:
+                await message.message.edit_text(
+                    f"📝 Editing: {role} - {cl_name}\n\n"
+                    f"Tasks ({len(tasks)}):",
+                    reply_markup=keyboard
+                )
+            except TelegramBadRequest as e:
+                logger.warning(f"Failed to edit message: {e}, sending new message")
+                await message.message.answer(
+                    f"📝 Editing: {role} - {cl_name}\n\n"
+                    f"Tasks ({len(tasks)}):",
+                    reply_markup=keyboard
+                )
         else:
             await message.answer(
                 f"📝 Editing: {role} - {cl_name}\n\n"
@@ -716,7 +725,10 @@ async def show_checklist_editor(message, state, role, cl_name):
             )
     except Exception as e:
         logger.error(f"Error in show_checklist_editor: {e}")
-        await message.answer("❌ Error loading checklist editor. Please try again.")
+        if isinstance(message, types.CallbackQuery):
+            await message.message.answer("❌ Error loading checklist editor. Please try again.")
+        else:
+            await message.answer("❌ Error loading checklist editor. Please try again.")
 
 # ========== CALLBACK HANDLERS ==========
 async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -737,6 +749,10 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             
         await callback.answer()
         data = callback.data
+        
+        # Log current state
+        current_state = await state.get_state()
+        logger.info(f"Current state: {current_state}")
         
         # Admin role selection
         if data.startswith("admin_role:"):
@@ -1181,6 +1197,13 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             logger.warning(f"Unhandled admin callback: {data}")
             await callback.message.answer("⚠️ Unhandled command. Please try again.")
             
+    except TelegramRetryAfter as e:
+        logger.warning(f"Flood control: retry after {e.retry_after} sec")
+        await asyncio.sleep(e.retry_after)
+        await callback.answer("♻️ Please try again in a few seconds", show_alert=True)
+    except TelegramBadRequest as e:
+        logger.error(f"Telegram API error: {e}")
+        await callback.message.answer("⚠️ Interface update failed. Please try again.")
     except Exception as e:
         logger.error(f"Error in admin_callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Admin operation error. Please try again.")
@@ -1337,17 +1360,17 @@ def main():
         
         dp = Dispatcher(storage=storage)
         
-        # Register handlers
+        # Register handlers - ADMIN FIRST!
+        dp.callback_query.register(admin_callback_handler)
+        dp.callback_query.register(user_callback_handler)
+        
+        # Message handlers
         dp.message.register(start_handler, Command("start"))
         dp.message.register(edit_checklists_handler, Command("edit_checklists"))
         dp.message.register(manage_assignments_handler, Command("manage_assignments"))
         dp.message.register(reports_handler, Command("reports"))
         dp.message.register(generate_password_handler, Command("generate_password"))
         dp.message.register(message_handler)
-        
-        # Callback handlers - разделены для пользователей и администраторов
-        dp.callback_query.register(user_callback_handler)
-        dp.callback_query.register(admin_callback_handler)
         
         # Startup actions
         dp.startup.register(on_startup)
