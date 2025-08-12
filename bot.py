@@ -718,6 +718,7 @@ async def show_checklist_editor(message, state, role, cl_name):
         logger.error(f"Error in show_checklist_editor: {e}")
         await message.answer("❌ Error loading checklist editor. Please try again.")
 
+# ========== CALLBACK HANDLERS ==========
 async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContext):
     """Handler for admin callback queries"""
     try:
@@ -1174,13 +1175,17 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.edit_text("👤 User Assignments Management:", reply_markup=keyboard)
+        
+        # Handle other admin buttons
+        else:
+            logger.warning(f"Unhandled admin callback: {data}")
+            await callback.message.answer("⚠️ Unhandled command. Please try again.")
             
     except Exception as e:
         logger.error(f"Error in admin_callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Admin operation error. Please try again.")
 
-# ========== USER FLOW HANDLERS ==========
-async def callback_handler(callback: types.CallbackQuery):
+async def user_callback_handler(callback: types.CallbackQuery):
     """Handler for user callback queries"""
     try:
         await callback.answer()
@@ -1205,8 +1210,10 @@ async def callback_handler(callback: types.CallbackQuery):
                 )
             else:
                 await finish_checklist(callback.message, user_id)
+        else:
+            logger.warning(f"Unhandled user callback: {data}")
     except Exception as e:
-        logger.error(f"Error in callback_handler: {e}\n{traceback.format_exc()}")
+        logger.error(f"Error in user_callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Processing error. Please restart with /start command.")
 
 async def send_task(bot: Bot, chat_id: int, user_id: int):
@@ -1338,8 +1345,8 @@ def main():
         dp.message.register(generate_password_handler, Command("generate_password"))
         dp.message.register(message_handler)
         
-        # Callback handlers
-        dp.callback_query.register(callback_handler)
+        # Callback handlers - разделены для пользователей и администраторов
+        dp.callback_query.register(user_callback_handler)
         dp.callback_query.register(admin_callback_handler)
         
         # Startup actions
