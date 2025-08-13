@@ -53,7 +53,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         # ... существующий код ...
         
         # Управление ролями
-        elif data == "add_role":
+        elif data == ("add_role"):
             await state.set_state(AdminStates.ADD_ROLE)
             await callback.message.answer("Please enter the name for the new role:")
             
