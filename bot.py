@@ -207,8 +207,8 @@ def checklist_keyboard(role):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     for cl_name in checklists[role].keys():
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=cl_name, callback_data=f"cl:{cl_name}"),
-            InlineKeyboardButton(text="🗑️", callback_data=f"delete_cl:{cl_name}")
+            InlineKeyboardButton(text=cl_name, callback_data=f"cl:{role}:{cl_name}"),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_cl:{role}:{cl_name}")
         ])
     keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="➕ Add New Checklist", callback_data="add_checklist")
@@ -218,14 +218,15 @@ def checklist_keyboard(role):
     ])
     return keyboard
 
-def tasks_keyboard(tasks):
+def tasks_keyboard(role, cl_name):
     """Create tasks management keyboard"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    tasks = checklists[role][cl_name]
     
     for i, task in enumerate(tasks):
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=f"✏️ {i+1}. {task[:20]}...", callback_data=f"edit_task:{i}"),
-            InlineKeyboardButton(text="🗑️", callback_data=f"delete_task:{i}")
+            InlineKeyboardButton(text=f"✏️ {i+1}. {task[:20]}...", callback_data=f"edit_task:{role}:{cl_name}:{i}"),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_task:{role}:{cl_name}:{i}")
         ])
     
     keyboard.inline_keyboard.append([
@@ -241,23 +242,21 @@ def tasks_keyboard(tasks):
 
 def reports_keyboard():
     """Create reports management keyboard"""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 View Last 10 Reports", callback_data="view_reports")],
         [InlineKeyboardButton(text="📥 Download All Reports (CSV)", callback_data="download_reports")],
         [InlineKeyboardButton(text="🧹 Clear Reports", callback_data="clear_reports")],
         [InlineKeyboardButton(text="⬅️ Back to Admin Menu", callback_data="back_to_admin")]
     ])
-    return keyboard
 
 def assignments_keyboard():
     """Create assignments management keyboard"""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Assign Checklist to User", callback_data="assign_user")],
         [InlineKeyboardButton(text="👥 View All Assignments", callback_data="view_assignments")],
         [InlineKeyboardButton(text="❌ Remove Assignment", callback_data="remove_assignment")],
         [InlineKeyboardButton(text="⬅️ Back to Admin Menu", callback_data="back_to_admin")]
     ])
-    return keyboard
 
 def manage_roles_keyboard():
     """Create role management keyboard"""
@@ -383,6 +382,9 @@ async def message_handler(message: types.Message, state: FSMContext):
         # Check if we're in an admin state
         current_state = await state.get_state()
         if current_state:
+            logger.info(f"Current state: {current_state}, text: {text}")
+            
+            # ADD TASK
             if current_state == AdminStates.ADD_TASK.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -395,10 +397,10 @@ async def message_handler(message: types.Message, state: FSMContext):
                     await show_checklist_editor(message, state, role, cl_name)
                 else:
                     await message.answer("❌ Error: Role or checklist not found!")
-                
                 await state.set_state(None)
                 return
                 
+            # EDIT TASK
             elif current_state == AdminStates.EDIT_TASK.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -415,10 +417,10 @@ async def message_handler(message: types.Message, state: FSMContext):
                         await message.answer("❌ Task index out of range!")
                 else:
                     await message.answer("❌ Error: Missing data for task update!")
-                
                 await state.set_state(None)
                 return
                 
+            # RENAME CHECKLIST
             elif current_state == AdminStates.RENAME_CHECKLIST.state:
                 data = await state.get_data()
                 role = data.get('role')
@@ -426,12 +428,11 @@ async def message_handler(message: types.Message, state: FSMContext):
                 new_name = text
                 
                 if role and old_name:
-                    # Rename checklist
                     if old_name in checklists[role]:
                         checklists[role][new_name] = checklists[role].pop(old_name)
                         save_checklists()
                         
-                        # Update assignments if needed
+                        # Update assignments
                         for uid, assignment in user_assignments.items():
                             if assignment["role"] == role and assignment["checklist"] == old_name:
                                 assignment["checklist"] = new_name
@@ -443,17 +444,16 @@ async def message_handler(message: types.Message, state: FSMContext):
                         await message.answer("❌ Checklist not found!")
                 else:
                     await message.answer("❌ Error: Role or checklist name missing!")
-                
                 await state.set_state(None)
                 return
                 
+            # NEW CHECKLIST
             elif current_state == AdminStates.NEW_CHECKLIST.state:
                 data = await state.get_data()
                 role = data.get('role')
                 cl_name = text
                 
                 if role:
-                    # Create new checklist
                     if cl_name not in checklists[role]:
                         checklists[role][cl_name] = []
                         save_checklists()
@@ -463,11 +463,10 @@ async def message_handler(message: types.Message, state: FSMContext):
                         await message.answer("❌ Checklist with this name already exists!")
                 else:
                     await message.answer("❌ Error: Role not found!")
-                
                 await state.set_state(None)
                 return
                 
-            # Adding new role
+            # ADD ROLE
             elif current_state == AdminStates.ADD_ROLE.state:
                 new_role = text.strip()
                 
@@ -481,7 +480,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                     keyboard = manage_roles_keyboard()
                     await message.answer("👤 Role Management:", reply_markup=keyboard)
             
-            # Renaming role
+            # RENAME ROLE
             elif current_state == AdminStates.RENAME_ROLE.state:
                 new_role_name = text.strip()
                 data = await state.get_data()
@@ -492,7 +491,6 @@ async def message_handler(message: types.Message, state: FSMContext):
                 elif new_role_name in checklists:
                     await message.answer("❌ Role with this name already exists!")
                 else:
-                    # Transfer data to new role
                     checklists[new_role_name] = checklists.pop(old_role)
                     save_checklists()
                     
@@ -609,7 +607,7 @@ async def show_checklist_editor(message, state, role, cl_name):
             return
         
         tasks = checklists[role][cl_name]
-        keyboard = tasks_keyboard(tasks)
+        keyboard = tasks_keyboard(role, cl_name)
         
         # Store current context
         await state.update_data(role=role, checklist=cl_name)
@@ -645,18 +643,71 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         # Back to admin menu
         if data == "back_to_admin":
-            await state.set_state(None)
+            await state.clear()
             await callback.message.answer("🔙 Returned to main menu")
             return
         
         # Cancel admin operation
         if data == "admin_cancel":
-            await state.set_state(None)
+            await state.clear()
             await callback.message.answer("Admin operation cancelled.")
             return
         
-        # Admin role selection
-        if data.startswith("admin_role:"):
+        # ========== ROLE MANAGEMENT ==========
+        if data == "add_role":
+            await state.set_state(AdminStates.ADD_ROLE)
+            await callback.message.answer("Please enter the name for the new role:")
+            return
+            
+        elif data.startswith("rename_role:"):
+            role = data.split(":")[1]
+            await state.set_state(AdminStates.RENAME_ROLE)
+            await state.update_data(old_role=role)
+            await callback.message.answer(f"Please enter the new name for the role '{role}':")
+            return
+            
+        elif data.startswith("delete_role:"):
+            role = data.split(":")[1]
+            await state.set_state(AdminStates.CONFIRM_DELETE_ROLE)
+            await state.update_data(delete_role=role)
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_role:{role}")],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+            ])
+            
+            await callback.message.answer(
+                f"⚠️ Are you sure you want to delete the role '{role}' and all its checklists?",
+                reply_markup=keyboard
+            )
+            return
+            
+        elif data.startswith("confirm_delete_role:"):
+            role = data.split(":")[1]
+            
+            if role in checklists:
+                # Delete role and all associated checklists
+                del checklists[role]
+                save_checklists()
+                
+                # Delete all assignments for this role
+                for uid, assignment in list(user_assignments.items()):
+                    if assignment["role"] == role:
+                        del user_assignments[uid]
+                save_user_assignments()
+                
+                await callback.message.answer(f"✅ Role '{role}' and all its checklists have been deleted.")
+            else:
+                await callback.message.answer("❌ Role not found!")
+                
+            # Return to role management
+            await state.set_state(AdminStates.MANAGE_ROLES)
+            keyboard = manage_roles_keyboard()
+            await callback.message.answer("👤 Role Management:", reply_markup=keyboard)
+            return
+            
+        # Select role for editing
+        elif data.startswith("select_role:"):
             role = data.split(":")[1]
             await state.set_state(AdminStates.SELECT_CHECKLIST)
             await state.update_data(role=role)
@@ -666,44 +717,63 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Select a checklist for {role}:",
                 reply_markup=keyboard
             )
+            return
         
-        # Checklist selection
+        # ========== CHECKLIST MANAGEMENT ==========
         elif data.startswith("cl:"):
-            cl_name = data.split(":")[1]
-            state_data = await state.get_data()
-            role = state_data.get('role')
-            
-            if role:
-                await show_checklist_editor(callback, state, role, cl_name)
-            else:
-                await callback.message.answer("❌ Role not selected!")
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
+            await state.update_data(role=role)
+            await show_checklist_editor(callback, state, role, cl_name)
+            return
         
         # Add new checklist
         elif data == "add_checklist":
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            if not role:
+                await callback.message.answer("❌ Role not selected!")
+                return
             await state.set_state(AdminStates.NEW_CHECKLIST)
             await callback.message.answer("Please enter the name for the new checklist:")
+            return
         
         # Add new task
         elif data == "add_task":
-            await state.set_state(AdminStates.ADD_TASK)
-            await callback.message.answer("Please enter the new task text:")
-        
-        # Rename checklist
-        elif data == "rename_checklist":
-            await state.set_state(AdminStates.RENAME_CHECKLIST)
-            await callback.message.answer("Please enter the new name for this checklist:")
-        
-        # Edit task
-        elif data.startswith("edit_task:"):
-            task_index = int(data.split(":")[1])
-            await state.set_state(AdminStates.EDIT_TASK)
-            await state.update_data(task_index=task_index)
-            
             state_data = await state.get_data()
             role = state_data.get('role')
             cl_name = state_data.get('checklist')
+            if not role or not cl_name:
+                await callback.message.answer("❌ Role or checklist not selected!")
+                return
+            await state.set_state(AdminStates.ADD_TASK)
+            await callback.message.answer("Please enter the new task text:")
+            return
+        
+        # Rename checklist
+        elif data == "rename_checklist":
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            cl_name = state_data.get('checklist')
+            if not role or not cl_name:
+                await callback.message.answer("❌ Role or checklist not selected!")
+                return
+            await state.set_state(AdminStates.RENAME_CHECKLIST)
+            await callback.message.answer("Please enter the new name for this checklist:")
+            return
+        
+        # Edit task
+        elif data.startswith("edit_task:"):
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
+            task_index = int(parts[3])
             
-            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
+            await state.update_data(role=role, checklist=cl_name, task_index=task_index)
+            await state.set_state(AdminStates.EDIT_TASK)
+            
+            if 0 <= task_index < len(checklists[role][cl_name]):
                 task_text = checklists[role][cl_name][task_index]
                 await callback.message.answer(
                     f"Current task text:\n{task_text}\n\n"
@@ -711,22 +781,23 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Task not found!")
+            return
             
         # Delete task confirmation
         elif data.startswith("delete_task:"):
-            task_index = int(data.split(":")[1])
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
+            task_index = int(parts[3])
+            
+            await state.update_data(role=role, checklist=cl_name, task_index=task_index)
             await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
-            await state.update_data(task_index=task_index)
             
-            state_data = await state.get_data()
-            role = state_data.get('role')
-            cl_name = state_data.get('checklist')
-            
-            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
+            if 0 <= task_index < len(checklists[role][cl_name]):
                 task_text = checklists[role][cl_name][task_index]
                 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_task:{task_index}")],
+                    [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_task:{role}:{cl_name}:{task_index}")],
                     [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
                 ])
                 
@@ -736,53 +807,54 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Task not found!")
+            return
             
         # Confirm task deletion
         elif data.startswith("confirm_delete_task:"):
-            task_index = int(data.split(":")[1])
-            state_data = await state.get_data()
-            role = state_data.get('role')
-            cl_name = state_data.get('checklist')
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
+            task_index = int(parts[3])
             
-            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
-                deleted_task = checklists[role][cl_name].pop(task_index)
-                save_checklists()
-                await callback.message.answer(f"✅ Task deleted:\n{deleted_task}")
-                await show_checklist_editor(callback, state, role, cl_name)
+            if role in checklists and cl_name in checklists[role]:
+                if 0 <= task_index < len(checklists[role][cl_name]):
+                    deleted_task = checklists[role][cl_name].pop(task_index)
+                    save_checklists()
+                    await callback.message.answer(f"✅ Task deleted:\n{deleted_task}")
+                    await show_checklist_editor(callback, state, role, cl_name)
+                else:
+                    await callback.message.answer("❌ Task index out of range!")
             else:
-                await callback.message.answer("❌ Task not found!")
-            
-            await state.set_state(AdminStates.EDIT_CHECKLIST)
+                await callback.message.answer("❌ Checklist not found!")
+            return
             
         # Delete checklist confirmation
         elif data.startswith("delete_cl:"):
-            cl_name = data.split(":")[1]
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
+            
+            await state.update_data(role=role, delete_cl_name=cl_name)
             await state.set_state(AdminStates.CONFIRM_DELETE_CHECKLIST)
-            await state.update_data(delete_cl_name=cl_name)
             
-            state_data = await state.get_data()
-            role = state_data.get('role')
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_cl:{role}:{cl_name}")],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
+            ])
             
-            if role:
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_cl:{cl_name}")],
-                    [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
-                ])
-                
-                await callback.message.answer(
-                    f"⚠️ Are you sure you want to delete the checklist '{cl_name}'?",
-                    reply_markup=keyboard
-                )
-            else:
-                await callback.message.answer("❌ Role not selected!")
+            await callback.message.answer(
+                f"⚠️ Are you sure you want to delete the checklist '{cl_name}'?",
+                reply_markup=keyboard
+            )
+            return
             
         # Confirm checklist deletion
         elif data.startswith("confirm_delete_cl:"):
-            cl_name = data.split(":")[1]
-            state_data = await state.get_data()
-            role = state_data.get('role')
+            parts = data.split(":")
+            role = parts[1]
+            cl_name = parts[2]
             
-            if role and cl_name in checklists.get(role, {}):
+            if role in checklists and cl_name in checklists[role]:
                 checklists[role].pop(cl_name)
                 save_checklists()
                 
@@ -794,7 +866,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 
                 await callback.message.answer(f"✅ Checklist '{cl_name}' deleted!")
                 
-                # Return to role selection
+                # Return to checklists list
                 await state.set_state(AdminStates.SELECT_CHECKLIST)
                 keyboard = checklist_keyboard(role)
                 await callback.message.edit_text(
@@ -803,6 +875,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Checklist not found!")
+            return
             
         # Cancel delete operation
         elif data == "cancel_delete":
@@ -815,7 +888,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await show_checklist_editor(callback, state, role, cl_name)
             else:
                 await callback.message.answer("❌ Operation canceled.")
-                await state.set_state(None)
+                await state.clear()
+            return
         
         # Back to checklists
         elif data == "back_to_checklists":
@@ -831,41 +905,33 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Role not selected!")
+            return
         
         # Back to roles
         elif data == "back_to_roles":
-            await state.set_state(AdminStates.SELECT_ROLE)
-            
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-            for role in checklists.keys():
-                keyboard.inline_keyboard.append([
-                    InlineKeyboardButton(text=role, callback_data=f"admin_role:{role}")
-                ])
-            
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(text="⬅️ Cancel", callback_data="admin_cancel")
-            ])
-                
+            await state.set_state(AdminStates.MANAGE_ROLES)
+            keyboard = manage_roles_keyboard()
             await callback.message.edit_text(
-                "Select a role to edit checklists:",
+                "👤 Role Management:",
                 reply_markup=keyboard
             )
+            return
         
-        # Generate password confirmation
+        # ========== PASSWORD MANAGEMENT ==========
         elif data == "gen_pass_confirm":
             global BOT_PASSWORD
             new_password = generate_password()
             BOT_PASSWORD = new_password
             
-            # In a real app, you would save this to a persistent storage
             await callback.message.answer(
                 f"✅ New password generated:\n<code>{new_password}</code>\n\n"
                 "Please save this password. Users will need it to authenticate.",
                 parse_mode="HTML"
             )
-            await state.set_state(None)
+            await state.clear()
+            return
         
-        # View reports
+        # ========== REPORTS MANAGEMENT ==========
         elif data == "view_reports":
             reports = get_reports(10)
             if not reports:
@@ -892,19 +958,20 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                     response += f"{i}. Error reading report\n\n"
             
             await callback.message.answer(response)
+            return
         
-        # Download reports
         elif data == "download_reports":
             csv_file = generate_csv_report()
             await callback.message.answer_document(
                 FSInputFile(csv_file),
                 caption="📥 All reports in CSV format"
             )
+            return
         
-        # Clear reports
         elif data == "clear_reports":
             deleted_count = clear_reports()
             await callback.message.answer(f"🧹 Deleted {deleted_count} reports!")
+            return
         
         # ========== ASSIGNMENT MANAGEMENT ==========
         elif data == "assign_user":
@@ -933,6 +1000,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select user to assign checklist:", reply_markup=keyboard)
+            return
             
         elif data.startswith("assign_user:"):
             user_id = int(data.split(":")[1])
@@ -954,6 +1022,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Select role for {user_name}:",
                 reply_markup=keyboard
             )
+            return
             
         elif data.startswith("assign_role:"):
             role = data.split(":")[1]
@@ -982,6 +1051,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Select checklist for {user_name} ({role}):",
                 reply_markup=keyboard
             )
+            return
             
         elif data.startswith("assign_checklist:"):
             cl_name = data.split(":")[1]
@@ -1012,6 +1082,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.answer("👤 User Assignments Management:", reply_markup=keyboard)
+            return
             
         elif data == "view_assignments":
             if not user_assignments:
@@ -1026,6 +1097,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 response += f"📋 Checklist: {assignment['checklist']}\n\n"
             
             await callback.message.answer(response)
+            return
             
         elif data == "remove_assignment":
             if not user_assignments:
@@ -1047,6 +1119,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select assignment to remove:", reply_markup=keyboard)
+            return
             
         elif data.startswith("remove_assignment:"):
             uid = data.split(":")[1]
@@ -1068,73 +1141,18 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.answer("👤 User Assignments Management:", reply_markup=keyboard)
+            return
             
         elif data == "back_to_assignments":
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.edit_text("👤 User Assignments Management:", reply_markup=keyboard)
-            
-        # ========== ROLE MANAGEMENT ==========
-        elif data == "add_role":
-            await state.set_state(AdminStates.ADD_ROLE)
-            await callback.message.answer("Please enter the name for the new role:")
-            
-        elif data.startswith("rename_role:"):
-            role = data.split(":")[1]
-            await state.set_state(AdminStates.RENAME_ROLE)
-            await state.update_data(old_role=role)
-            await callback.message.answer(f"Please enter the new name for the role '{role}':")
-            
-        elif data.startswith("delete_role:"):
-            role = data.split(":")[1]
-            await state.set_state(AdminStates.CONFIRM_DELETE_ROLE)
-            await state.update_data(delete_role=role)
-            
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Yes, delete", callback_data=f"confirm_delete_role:{role}")],
-                [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_delete")]
-            ])
-            
-            await callback.message.answer(
-                f"⚠️ Are you sure you want to delete the role '{role}' and all its checklists?",
-                reply_markup=keyboard
-            )
-            
-        elif data.startswith("confirm_delete_role:"):
-            role = data.split(":")[1]
-            
-            if role in checklists:
-                # Delete role and all associated checklists
-                del checklists[role]
-                save_checklists()
-                
-                # Delete all assignments for this role
-                for uid, assignment in list(user_assignments.items()):
-                    if assignment["role"] == role:
-                        del user_assignments[uid]
-                save_user_assignments()
-                
-                await callback.message.answer(f"✅ Role '{role}' and all its checklists have been deleted.")
-            else:
-                await callback.message.answer("❌ Role not found!")
-                
-            # Return to role management
-            await state.set_state(AdminStates.MANAGE_ROLES)
-            keyboard = manage_roles_keyboard()
-            await callback.message.answer("👤 Role Management:", reply_markup=keyboard)
-            
-        # Select role for editing
-        elif data.startswith("select_role:"):
-            role = data.split(":")[1]
-            await state.set_state(AdminStates.SELECT_CHECKLIST)
-            await state.update_data(role=role)
-            
-            keyboard = checklist_keyboard(role)
-            await callback.message.edit_text(
-                f"Select a checklist for {role}:",
-                reply_markup=keyboard
-            )
-            
+            return
+        
+        # Unhandled callback
+        logger.warning(f"Unhandled callback data: {data}")
+        await callback.message.answer("❌ Unknown command. Please try again.")
+        
     except Exception as e:
         logger.error(f"Error in admin_callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Admin operation error. Please try again.")
@@ -1182,7 +1200,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
         # Create response buttons
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="✅ Done", callback_data="task:Done"),
-            InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not Done")
+            InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not_Done")
         ]])
         
         await bot.send_message(
@@ -1296,8 +1314,8 @@ def main():
         dp.message.register(message_handler)
         
         # Callback handlers
+        dp.callback_query.register(admin_callback_handler, F.from_user.id.in_(ADMIN_IDS))
         dp.callback_query.register(callback_handler)
-        dp.callback_query.register(admin_callback_handler)
         
         # Startup actions
         dp.startup.register(on_startup)
