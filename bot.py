@@ -849,7 +849,13 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         await callback.answer()
         data = callback.data
         
-        # Admin role selection
+        # Handle admin navigation
+        if data == "back_to_admin":
+            await state.set_state(None)
+            await callback.message.edit_text("🔙 Returned to main menu")
+            return
+            
+        # Handle admin operations
         if data.startswith("admin_role:"):
             role = data.split(":")[1]
             await state.set_state(AdminStates.SELECT_CHECKLIST)
@@ -861,7 +867,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 reply_markup=keyboard
             )
         
-        # Checklist selection
         elif data.startswith("cl:"):
             cl_name = data.split(":")[1]
             role = (await state.get_data()).get('role')
@@ -871,22 +876,18 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             else:
                 await callback.message.answer("❌ Role not selected!")
         
-        # Add new checklist
         elif data == "add_checklist":
             await state.set_state(AdminStates.NEW_CHECKLIST)
             await callback.message.answer("Please enter the name for the new checklist:")
         
-        # Add new task
         elif data == "add_task":
             await state.set_state(AdminStates.ADD_TASK)
             await callback.message.answer("Please enter the new task text:")
         
-        # Rename checklist
         elif data == "rename_checklist":
             await state.set_state(AdminStates.RENAME_CHECKLIST)
             await callback.message.answer("Please enter the new name for this checklist:")
         
-        # Edit task
         elif data.startswith("edit_task:"):
             task_index = int(data.split(":")[1])
             await state.set_state(AdminStates.EDIT_TASK)
@@ -904,8 +905,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Task not found!")
-            
-        # Delete task confirmation
+        
         elif data.startswith("delete_task:"):
             task_index = int(data.split(":")[1])
             await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
@@ -929,8 +929,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Task not found!")
-            
-        # Confirm task deletion
+        
         elif data.startswith("confirm_delete_task:"):
             task_index = int(data.split(":")[1])
             data = await state.get_data()
@@ -946,8 +945,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.answer("❌ Task not found!")
             
             await state.set_state(AdminStates.EDIT_CHECKLIST)
-            
-        # Delete checklist confirmation
+        
         elif data.startswith("delete_cl:"):
             cl_name = data.split(":")[1]
             await state.set_state(AdminStates.CONFIRM_DELETE_CHECKLIST)
@@ -968,8 +966,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             else:
                 await callback.message.answer("❌ Role not selected!")
-            
-        # Confirm checklist deletion
+        
         elif data.startswith("confirm_delete_cl:"):
             cl_name = data.split(":")[1]
             data = await state.get_data()
@@ -1002,8 +999,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.edit_text("Select a role to edit checklists:", reply_markup=keyboard)
             else:
                 await callback.message.answer("❌ Checklist not found!")
-            
-        # Cancel delete operation
+        
         elif data == "cancel_delete":
             data = await state.get_data()
             role = data.get('role')
@@ -1016,7 +1012,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.answer("❌ Operation canceled.")
                 await state.set_state(None)
         
-        # Back to checklists
         elif data == "back_to_checklists":
             data = await state.get_data()
             role = data.get('role')
@@ -1031,7 +1026,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             else:
                 await callback.message.answer("❌ Role not selected!")
         
-        # Back to roles
         elif data == "back_to_roles":
             await state.set_state(AdminStates.SELECT_ROLE)
             
@@ -1050,13 +1044,11 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 reply_markup=keyboard
             )
         
-        # Generate password confirmation
         elif data == "gen_pass_confirm":
             global BOT_PASSWORD
             new_password = generate_password()
             BOT_PASSWORD = new_password
             
-            # In a real app, you would save this to a persistent storage
             await callback.message.answer(
                 f"✅ New password generated:\n<code>{new_password}</code>\n\n"
                 "Please save this password. Users will need it to authenticate.",
@@ -1064,7 +1056,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             )
             await state.set_state(None)
         
-        # View reports
         elif data == "view_reports":
             reports = get_reports(10)
             if not reports:
@@ -1092,7 +1083,6 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             
             await callback.message.answer(response)
         
-        # Download reports
         elif data == "download_reports":
             csv_file = generate_csv_report()
             await callback.message.answer_document(
@@ -1100,21 +1090,14 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 caption="📥 All reports in CSV format"
             )
         
-        # Clear reports
         elif data == "clear_reports":
             deleted_count = clear_reports()
             await callback.message.answer(f"🧹 Deleted {deleted_count} reports!")
         
-        # Back to admin menu
-        elif data == "back_to_admin":
-            await state.set_state(None)
-            await callback.message.answer("🔙 Returned to main menu")
-        
-        # Cancel admin operation
         elif data == "admin_cancel":
             await state.set_state(None)
             await callback.message.answer("Admin operation cancelled.")
-            
+        
         # ========== ASSIGNMENT MANAGEMENT ==========
         elif data == "assign_user":
             await state.set_state(AdminStates.SELECT_USER_TO_ASSIGN)
@@ -1142,7 +1125,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select user to assign checklist:", reply_markup=keyboard)
-            
+        
         elif data.startswith("assign_user:"):
             user_id = int(data.split(":")[1])
             await state.update_data(assign_user_id=user_id)
@@ -1163,7 +1146,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Select role for {user_name}:",
                 reply_markup=keyboard
             )
-            
+        
         elif data.startswith("assign_role:"):
             role = data.split(":")[1]
             data = await state.get_data()
@@ -1191,7 +1174,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 f"Select checklist for {user_name} ({role}):",
                 reply_markup=keyboard
             )
-            
+        
         elif data.startswith("assign_checklist:"):
             cl_name = data.split(":")[1]
             data = await state.get_data()
@@ -1221,7 +1204,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.answer("👤 User Assignments Management:", reply_markup=keyboard)
-            
+        
         elif data == "view_assignments":
             if not user_assignments:
                 await callback.message.answer("📭 No assignments found.")
@@ -1235,7 +1218,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 response += f"📋 Checklist: {assignment['checklist']}\n\n"
             
             await callback.message.answer(response)
-            
+        
         elif data == "remove_assignment":
             if not user_assignments:
                 await callback.message.answer("📭 No assignments to remove.")
@@ -1256,7 +1239,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select assignment to remove:", reply_markup=keyboard)
-            
+        
         elif data.startswith("remove_assignment:"):
             uid = data.split(":")[1]
             if uid in user_assignments:
@@ -1277,17 +1260,17 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.answer("👤 User Assignments Management:", reply_markup=keyboard)
-            
+        
         elif data == "back_to_assignments":
             await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
             keyboard = assignments_keyboard()
             await callback.message.edit_text("👤 User Assignments Management:", reply_markup=keyboard)
-            
+        
         # ========== USER MANAGEMENT ==========
         elif data == "add_user_by_id":
             await state.set_state(AdminStates.ADD_USER_BY_ID)
             await callback.message.answer("Please enter the user ID to add:")
-            
+        
         elif data == "view_all_users":
             if not user_data:
                 await callback.message.answer("📭 No users found.")
@@ -1300,7 +1283,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 response += f"📅 Created: {user_info.get('created_at', 'Unknown')}\n\n"
             
             await callback.message.answer(response)
-            
+        
         elif data == "make_admin":
             if not user_data:
                 await callback.message.answer("📭 No users found.")
@@ -1323,7 +1306,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select user to make admin:", reply_markup=keyboard)
-            
+        
         elif data.startswith("make_admin:"):
             uid = data.split(":")[1]
             if uid in user_data:
@@ -1339,7 +1322,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_USERS)
             keyboard = users_management_keyboard()
             await callback.message.answer("👥 User Management:", reply_markup=keyboard)
-            
+        
         elif data == "remove_admin":
             if not user_data:
                 await callback.message.answer("📭 No users found.")
@@ -1362,7 +1345,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select admin to remove:", reply_markup=keyboard)
-            
+        
         elif data.startswith("remove_admin:"):
             uid = data.split(":")[1]
             if uid in user_data:
@@ -1378,27 +1361,27 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_USERS)
             keyboard = users_management_keyboard()
             await callback.message.answer("👥 User Management:", reply_markup=keyboard)
-            
+        
         elif data == "back_to_users":
             await state.set_state(AdminStates.MANAGE_USERS)
             keyboard = users_management_keyboard()
             await callback.message.edit_text("👥 User Management:", reply_markup=keyboard)
-            
+        
         # ========== NOTIFICATIONS MANAGEMENT ==========
         elif data == "enable_notifications":
             notification_settings['enabled'] = True
             save_notification_settings()
             await callback.message.answer("✅ Notifications enabled!")
-            
+        
         elif data == "disable_notifications":
             notification_settings['enabled'] = False
             save_notification_settings()
             await callback.message.answer("✅ Notifications disabled!")
-            
+        
         elif data == "set_reminder_time":
             await state.set_state(AdminStates.SET_NOTIFICATION_TIME)
             await callback.message.answer("Please enter the reminder time in HH:MM format (e.g., 09:00):")
-            
+        
         elif data == "manage_user_notifications":
             if not user_data:
                 await callback.message.answer("📭 No users found.")
@@ -1418,7 +1401,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             ])
             
             await callback.message.edit_text("Select user to toggle notifications:", reply_markup=keyboard)
-            
+        
         elif data.startswith("toggle_user_notification:"):
             uid = data.split(":")[1]
             if uid not in notification_settings['users']:
@@ -1436,12 +1419,12 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.MANAGE_NOTIFICATIONS)
             keyboard = notifications_keyboard()
             await callback.message.answer("🔔 Notifications Management:", reply_markup=keyboard)
-            
+        
         elif data == "back_to_notifications":
             await state.set_state(AdminStates.MANAGE_NOTIFICATIONS)
             keyboard = notifications_keyboard()
             await callback.message.edit_text("🔔 Notifications Management:", reply_markup=keyboard)
-            
+        
         # ========== STATISTICS ==========
         elif data == "user_activity_stats":
             stats = get_user_activity_stats()
@@ -1460,7 +1443,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 )
             
             await callback.message.answer(response)
-            
+        
         elif data == "completion_stats":
             stats = get_completion_stats()
             if not stats or stats['total_checklists'] == 0:
@@ -1490,7 +1473,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 response += f"  {checklist}: {checklist_stats['completed']}/{checklist_stats['total']} ({checklist_rate:.1f}%)\n"
             
             await callback.message.answer(response)
-            
+        
         elif data == "checklist_stats":
             stats = get_completion_stats()
             if not stats or not stats['by_checklist']:
@@ -1504,11 +1487,15 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 response += f"   Completed: {checklist_stats['completed']}/{checklist_stats['total']} ({checklist_rate:.1f}%)\n\n"
             
             await callback.message.answer(response)
-            
+        
         elif data == "back_to_statistics":
             await state.set_state(AdminStates.VIEW_STATISTICS)
             keyboard = statistics_keyboard()
             await callback.message.edit_text("📊 Statistics:", reply_markup=keyboard)
+        
+        else:
+            logger.warning(f"Unhandled callback data: {data}")
+            await callback.answer("❌ Unknown command")
             
     except Exception as e:
         logger.error(f"Error in admin_callback_handler: {e}\n{traceback.format_exc()}")
@@ -1540,6 +1527,9 @@ async def callback_handler(callback: types.CallbackQuery):
                 )
             else:
                 await finish_checklist(callback.message, user_id)
+        else:
+            logger.warning(f"Unhandled user callback data: {data}")
+            await callback.answer("❌ Unknown command")
     except Exception as e:
         logger.error(f"Error in callback_handler: {e}\n{traceback.format_exc()}")
         await callback.message.answer("❌ Processing error. Please restart with /start command.")
