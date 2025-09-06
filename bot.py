@@ -556,7 +556,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 else:
                     await message.answer("❌ Error: Role or checklist not found!")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
                 
             elif current_state == AdminStates.EDIT_TASK.state:
@@ -576,7 +576,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 else:
                     await message.answer("❌ Error: Missing data for task update!")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
                 
             elif current_state == AdminStates.RENAME_CHECKLIST.state:
@@ -604,7 +604,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 else:
                     await message.answer("❌ Error: Role or checklist name missing!")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
                 
             elif current_state == AdminStates.NEW_CHECKLIST.state:
@@ -624,7 +624,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 else:
                     await message.answer("❌ Error: Role not found!")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
                 
             elif current_state == AdminStates.ADD_USER_BY_ID.state:
@@ -643,7 +643,7 @@ async def message_handler(message: types.Message, state: FSMContext):
                 except ValueError:
                     await message.answer("❌ Invalid user ID. Please enter a numeric ID.")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
                 
             elif current_state == AdminStates.SET_NOTIFICATION_TIME.state:
@@ -656,14 +656,18 @@ async def message_handler(message: types.Message, state: FSMContext):
                 except ValueError:
                     await message.answer("❌ Invalid time format. Please use HH:MM format (e.g., 09:00).")
                 
-                await state.set_state(None)
+                await state.clear()
                 return
 
         # Normal user flow
         if user_id not in user_sessions:
             if text == BOT_PASSWORD:
-                user_sessions[user_id] = {"step": "name"}
-                await message.answer("✅ Password accepted! Please enter your name:")
+                if is_admin(user_id):
+                    await message.answer("✅ Password accepted! You can now use admin commands.")
+                    return
+                else:
+                    user_sessions[user_id] = {"step": "name"}
+                    await message.answer("✅ Password accepted! Please enter your name:")
             else:
                 await message.answer("❌ Incorrect password. Please try again.")
             return
@@ -851,7 +855,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         # Handle admin navigation
         if data == "back_to_admin":
-            await state.set_state(None)
+            await state.clear()
             await callback.message.edit_text("🔙 Returned to main menu")
             return
             
@@ -869,7 +873,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data.startswith("cl:"):
             cl_name = data.split(":")[1]
-            role = (await state.get_data()).get('role')
+            state_data = await state.get_data()
+            role = state_data.get('role')
             
             if role:
                 await show_checklist_editor(callback, state, role, cl_name)
@@ -893,9 +898,9 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.EDIT_TASK)
             await state.update_data(task_index=task_index)
             
-            data = await state.get_data()
-            role = data.get('role')
-            cl_name = data.get('checklist')
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            cl_name = state_data.get('checklist')
             
             if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
                 task_text = checklists[role][cl_name][task_index]
@@ -911,9 +916,9 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.CONFIRM_DELETE_TASK)
             await state.update_data(task_index=task_index)
             
-            data = await state.get_data()
-            role = data.get('role')
-            cl_name = data.get('checklist')
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            cl_name = state_data.get('checklist')
             
             if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
                 task_text = checklists[role][cl_name][task_index]
@@ -932,9 +937,9 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data.startswith("confirm_delete_task:"):
             task_index = int(data.split(":")[1])
-            data = await state.get_data()
-            role = data.get('role')
-            cl_name = data.get('checklist')
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            cl_name = state_data.get('checklist')
             
             if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
                 deleted_task = checklists[role][cl_name].pop(task_index)
@@ -951,8 +956,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await state.set_state(AdminStates.CONFIRM_DELETE_CHECKLIST)
             await state.update_data(delete_cl_name=cl_name)
             
-            data = await state.get_data()
-            role = data.get('role')
+            state_data = await state.get_data()
+            role = state_data.get('role')
             
             if role:
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -969,8 +974,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data.startswith("confirm_delete_cl:"):
             cl_name = data.split(":")[1]
-            data = await state.get_data()
-            role = data.get('role')
+            state_data = await state.get_data()
+            role = state_data.get('role')
             
             if role and cl_name in checklists.get(role, {}):
                 checklists[role].pop(cl_name)
@@ -1001,20 +1006,20 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.answer("❌ Checklist not found!")
         
         elif data == "cancel_delete":
-            data = await state.get_data()
-            role = data.get('role')
-            cl_name = data.get('checklist')
+            state_data = await state.get_data()
+            role = state_data.get('role')
+            cl_name = state_data.get('checklist')
             
             if role and cl_name:
                 await state.set_state(AdminStates.EDIT_CHECKLIST)
                 await show_checklist_editor(callback, state, role, cl_name)
             else:
                 await callback.message.answer("❌ Operation canceled.")
-                await state.set_state(None)
+                await state.clear()
         
         elif data == "back_to_checklists":
-            data = await state.get_data()
-            role = data.get('role')
+            state_data = await state.get_data()
+            role = state_data.get('role')
             
             if role:
                 await state.set_state(AdminStates.SELECT_CHECKLIST)
@@ -1054,7 +1059,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 "Please save this password. Users will need it to authenticate.",
                 parse_mode="HTML"
             )
-            await state.set_state(None)
+            await state.clear()
         
         elif data == "view_reports":
             reports = get_reports(10)
@@ -1095,7 +1100,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await callback.message.answer(f"🧹 Deleted {deleted_count} reports!")
         
         elif data == "admin_cancel":
-            await state.set_state(None)
+            await state.clear()
             await callback.message.answer("Admin operation cancelled.")
         
         # ========== ASSIGNMENT MANAGEMENT ==========
@@ -1149,8 +1154,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data.startswith("assign_role:"):
             role = data.split(":")[1]
-            data = await state.get_data()
-            user_id = data.get('assign_user_id')
+            state_data = await state.get_data()
+            user_id = state_data.get('assign_user_id')
             
             if not user_id:
                 await callback.message.answer("❌ User not selected!")
@@ -1177,9 +1182,9 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data.startswith("assign_checklist:"):
             cl_name = data.split(":")[1]
-            data = await state.get_data()
-            user_id = data.get('assign_user_id')
-            role = data.get('assign_role')
+            state_data = await state.get_data()
+            user_id = state_data.get('assign_user_id')
+            role = state_data.get('assign_role')
             
             if not user_id or not role:
                 await callback.message.answer("❌ Missing assignment data!")
@@ -1688,8 +1693,13 @@ def main():
         dp.message.register(message_handler)
         
         # Callback handlers
-        dp.callback_query.register(callback_handler)
-        dp.callback_query.register(admin_callback_handler)
+        dp.callback_query.register(admin_callback_handler, F.data.startswith(("admin_", "cl:", "add_", "edit_", "delete_", "back_", "gen_", "view_", "assign_", "remove_", "make_", "toggle_", "confirm_", "cancel_")))
+        dp.callback_query.register(callback_handler, F.data.startswith("task:"))
+        
+        # Unknown callback handler
+        @dp.callback_query()
+        async def unknown_callback_handler(callback: types.CallbackQuery):
+            await callback.answer("❌ Unknown command or access denied")
         
         # Startup actions
         dp.startup.register(on_startup)
