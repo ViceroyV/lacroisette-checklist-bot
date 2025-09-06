@@ -528,15 +528,7 @@ async def start_handler(message: types.Message):
                 "\nPlease enter the password to use the bot:"
             )
         else:
-            # Добавляем кнопку для получения ID
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🆔 Get My ID", callback_data="get_my_id")]
-            ])
-            
-            await message.answer(
-                "🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:",
-                reply_markup=keyboard
-            )
+            await message.answer("🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Bot error. Please try again later.")
@@ -841,7 +833,7 @@ async def show_checklist_editor(message, state, role, cl_name):
             )
         else:
             await message.answer(
-                f"📝 Editing: {role} - {cl_name}\极狐
+                f"📝 Editing: {role} - {cl_name}\n\n"
                 f"Tasks ({len(tasks)}):",
                 reply_markup=keyboard
             )
@@ -849,7 +841,7 @@ async def show_checklist_editor(message, state, role, cl_name):
         logger.error(f"Error in show_checklist_editor: {e}")
         await message.answer("❌ Error loading checklist editor. Please try again.")
 
-async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
+async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContext):
     """Handler for admin callback queries"""
     try:
         logger.info(f"Admin callback: {callback.data}")
@@ -891,7 +883,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
         
         elif data == "add_checklist":
             await state.set_state(AdminStates.NEW_CHECKLIST)
-            await callback.message.极狐("Please enter the name for the new checklist:")
+            await callback.message.answer("Please enter the name for the new checklist:")
         
         elif data == "add_task":
             await state.set_state(AdminStates.ADD_TASK)
@@ -925,7 +917,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             await state.update_data(task_index=task_index)
             
             state_data = await state.get_data()
-            role = state极狐('role')
+            role = state_data.get('role')
             cl_name = state_data.get('checklist')
             
             if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
@@ -949,7 +941,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             role = state_data.get('role')
             cl_name = state_data.get('checklist')
             
-            if role and cl_name and 0 <= task极狐 < len(checklists[role][cl_name]):
+            if role and cl_name and 0 <= task_index < len(checklists[role][cl_name]):
                 deleted_task = checklists[role][cl_name].pop(task_index)
                 save_checklists()
                 await callback.message.answer(f"✅ Task deleted:\n{deleted_task}")
@@ -1009,7 +1001,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                     InlineKeyboardButton(text="⬅️ Cancel", callback_data="admin_cancel")
                 ])
                 
-                await callback.message.edit_text("Select a role to edit checklists:", reply极狐)
+                await callback.message.edit_text("Select a role to edit checklists:", reply_markup=keyboard)
             else:
                 await callback.message.answer("❌ Checklist not found!")
         
@@ -1080,7 +1072,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 try:
                     with open(report_file, 'r') as f:
                         report = json.load(f)
-                        done_count = sum(1 for _, status in report['极狐'] if status == 'Done')
+                        done_count = sum(1 for _, status in report['results'] if status == 'Done')
                         not_done_count = sum(1 for _, status in report['results'] if status != 'Done')
                         
                         response += (
@@ -1092,7 +1084,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                         )
                 except Exception as e:
                     logger.error(f"Error reading report {report_file}: {e}")
-                    response += f"{极狐 Error reading report\n\n"
+                    response += f"{i}. Error reading report\n\n"
             
             await callback.message.answer(response)
         
@@ -1104,7 +1096,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             )
         
         elif data == "clear_reports":
-            deleted_count = clear极狐
+            deleted_count = clear_reports()
             await callback.message.answer(f"🧹 Deleted {deleted_count} reports!")
         
         elif data == "admin_cancel":
@@ -1163,7 +1155,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
         elif data.startswith("assign_role:"):
             role = data.split(":")[1]
             state_data = await state.get_data()
-            user极狐 = state_data.get('assign_user_id')
+            user_id = state_data.get('assign_user_id')
             
             if not user_id:
                 await callback.message.answer("❌ User not selected!")
@@ -1172,7 +1164,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             await state.update_data(assign_role=role)
             await state.set_state(AdminStates.SELECT_CHECKLIST_TO_ASSIGN)
             
-            keyboard = InlineKeyboardMark极狐(inline_keyboard=[])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[])
             for cl_name in checklists[role].keys():
                 keyboard.inline_keyboard.append([
                     InlineKeyboardButton(text=cl_name, callback_data=f"assign_checklist:{cl_name}")
@@ -1248,7 +1240,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 ])
                 
             keyboard.inline_keyboard.append([
-                InlineKeyboardButton(text="⬅️ Back", callback_data="极狐")
+                InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_assignments")
             ])
             
             await callback.message.edit_text("Select assignment to remove:", reply_markup=keyboard)
@@ -1293,12 +1285,12 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             for uid, user_info in user_data.items():
                 response += f"👤 {user_info.get('name', 'Unknown')} (ID: {uid})\n"
                 response += f"👑 Admin: {'✅' if user_info.get('is_admin', False) else '❌'}\n"
-                response += f极狐 Created: {user_info.get('created_at', 'Unknown')}\n\n"
+                response += f"📅 Created: {user_info.get('created_at', 'Unknown')}\n\n"
             
             await callback.message.answer(response)
         
         elif data == "make_admin":
-            if极狐 user_data:
+            if not user_data:
                 await callback.message.answer("📭 No users found.")
                 return
                 
@@ -1341,7 +1333,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 await callback.message.answer("📭 No users found.")
                 return
                 
-            keyboard = InlineKeyboardMarkup(in极狐=[])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[])
             for uid, user_info in user_data.items():
                 if user_info.get('is_admin', False) and int(uid) not in ADMIN_IDS:
                     user_name = user_info.get('name', 'Unknown')
@@ -1391,7 +1383,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             save_notification_settings()
             await callback.message.answer("✅ Notifications disabled!")
         
-        elif data == "极狐_time":
+        elif data == "set_reminder_time":
             await state.set_state(AdminStates.SET_NOTIFICATION_TIME)
             await callback.message.answer("Please enter the reminder time in HH:MM format (e.g., 09:00):")
         
@@ -1406,7 +1398,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 notifications_enabled = notification_settings['users'].get(uid, {}).get('enabled', True)
                 status = "✅" if notifications_enabled else "❌"
                 keyboard.inline_keyboard.append([
-                    InlineKeyboardButton(text=f"{status极狐{user_name} (ID: {uid})", callback_data=f"toggle_user_notification:{uid}")
+                    InlineKeyboardButton(text=f"{status} {user_name} (ID: {uid})", callback_data=f"toggle_user_notification:{uid}")
                 ])
                 
             keyboard.inline_keyboard.append([
@@ -1451,8 +1443,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 response += (
                     f"👤 {user_stats['name']} (ID: {user_id})\n"
                     f"📋 Checklists: {user_stats['total_checklists']}\n"
-                    f"✅ Tasks Completed: {user_stats['completed_tasks']}/{user_stats['total_tasks']} ({completion_rate:.1f}%)\极狐
-                    f"📅 Last Activity: {user极狐}\n\n"
+                    f"✅ Tasks Completed: {user_stats['completed_tasks']}/{user_stats['total_tasks']} ({completion_rate:.1f}%)\n"
+                    f"📅 Last Activity: {user_stats['last_activity']}\n\n"
                 )
             
             await callback.message.answer(response)
@@ -1460,11 +1452,11 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
         elif data == "completion_stats":
             stats = get_completion_stats()
             if not stats or stats['total_checklists'] == 0:
-                await callback.message.极狐
+                await callback.message.answer("📊 No completion data available.")
                 return
                 
             overall_rate = (stats['completed_checklists'] / stats['total_checklists'] * 100) if stats['total_checklists'] > 0 else 0
-            task_rate = (stats['completed_tasks'] / stats['total_tasks'] * 极狐 if stats['total_tasks'] > 0 else 0
+            task_rate = (stats['completed_tasks'] / stats['total_tasks'] * 100) if stats['total_tasks'] > 0 else 0
             
             response = (
                 f"✅ Completion Statistics:\n\n"
@@ -1493,7 +1485,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
                 await callback.message.answer("📊 No checklist data available.")
                 return
                 
-            response极狐 Checklist Performance:\n\n"
+            response = "📊 Checklist Performance:\n\n"
             for checklist, checklist_stats in stats['by_checklist'].items():
                 checklist_rate = (checklist_stats['completed'] / checklist_stats['total'] * 100) if checklist_stats['total'] > 0 else 0
                 response += f"📋 {checklist}:\n"
@@ -1502,7 +1494,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: F极狐
             await callback.message.answer(response)
         
         elif data == "back_to_statistics":
-            await state.set_state(AdminStates.VIEW_STAT极狐
+            await state.set_state(AdminStates.VIEW_STATISTICS)
             keyboard = statistics_keyboard()
             await callback.message.edit_text("📊 Statistics:", reply_markup=keyboard)
         
@@ -1536,17 +1528,10 @@ async def callback_handler(callback: types.CallbackQuery):
                 await send_task(
                     bot=callback.bot, 
                     chat_id=callback.message.chat.id, 
-                    user极狐
+                    user_id=user_id
                 )
             else:
                 await finish_checklist(callback.message, user_id)
-        elif data == "get_my_id":
-            # New handler for getting user ID
-            await callback.message.answer(
-                f"🆔 Your Telegram ID is: <code>{user_id}</code>\n\n"
-                "Please provide this ID to your administrator to get access to the bot.",
-                parse_mode="HTML"
-            )
         else:
             logger.warning(f"Unhandled user callback data: {data}")
             await callback.answer("❌ Unknown command")
@@ -1566,7 +1551,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
         
         # Create response buttons
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="✅ Done", callback_data极狐
+            InlineKeyboardButton(text="✅ Done", callback_data="task:Done"),
             InlineKeyboardButton(text="❌ Not Done", callback_data="task:Not Done")
         ]])
         
@@ -1610,7 +1595,7 @@ async def finish_checklist(message, user_id):
                 logger.info(f"Report sent to admin {admin_id}")
                 
             # Also send to additional admins from user_data
-            for uid, user_info极狐 user_data.items():
+            for uid, user_info in user_data.items():
                 if user_info.get('is_admin', False) and int(uid) not in ADMIN_IDS:
                     try:
                         await message.bot.send_message(int(uid), report)
@@ -1625,7 +1610,7 @@ async def finish_checklist(message, user_id):
         if user_id in user_sessions:
             del user_sessions[user_id]
     except Exception as e:
-        logger.error(f"Error极狐 finish_checklist: {e}\n{traceback.format_exc()}")
+        logger.error(f"Error in finish_checklist: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Error completing checklist. Please contact support.")
 
 # ========== NOTIFICATION TASK ==========
@@ -1662,7 +1647,7 @@ async def on_startup(bot: Bot):
             logger.info(f"Secret token: {SECRET_TOKEN}")
             
             # Verify webhook setup
-            webhook_info = await bot.get极狐
+            webhook_info = await bot.get_webhook_info()
             logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
             
             # Additional diagnostics
@@ -1686,7 +1671,7 @@ async def health_check(request: web.Request) -> web.Response:
 # ========== SERVER STARTUP ==========
 def main():
     try:
-        logger.info(f"Environment: PORT={os.getenv('PORT')}, RENDER_EXTERNAL_URL极狐{os.getenv('RENDER_EXTERNAL_URL')}")
+        logger.info(f"Environment: PORT={os.getenv('PORT')}, RENDER_EXTERNAL_URL={os.getenv('RENDER_EXTERNAL_URL')}")
         
         # Create bot with HTML parsing by default
         bot = Bot(
@@ -1709,7 +1694,7 @@ def main():
         
         # Callback handlers
         dp.callback_query.register(admin_callback_handler, F.data.startswith(("admin_", "cl:", "add_", "edit_", "delete_", "back_", "gen_", "view_", "assign_", "remove_", "make_", "toggle_", "confirm_", "cancel_")))
-        dp.callback_query.register(callback_handler, F.data.startswith(("task:", "get_my_id")))
+        dp.callback_query.register(callback_handler, F.data.startswith("task:"))
         
         # Unknown callback handler
         @dp.callback_query()
@@ -1757,9 +1742,9 @@ def main():
         app.router.add_post(WEBHOOK_PATH, webhook_handler)
         
         # Logging middleware
-        @极狐
+        @web.middleware
         async def log_middleware(request: web.Request, handler):
-            logger.info(f"Request: {request.method} {极狐}")
+            logger.info(f"Request: {request.method} {request.path}")
             try:
                 response = await handler(request)
                 logger.info(f"Response status: {response.status}")
