@@ -528,7 +528,15 @@ async def start_handler(message: types.Message):
                 "\nPlease enter the password to use the bot:"
             )
         else:
-            await message.answer("🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:")
+            # Добавляем кнопку для получения ID
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🆔 Get My ID", callback_data="get_my_id")]
+            ])
+            
+            await message.answer(
+                "🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:",
+                reply_markup=keyboard
+            )
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Bot error. Please try again later.")
@@ -1215,8 +1223,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 await callback.message.answer("📭 No assignments found.")
                 return
                 
-            response = "📋 Current Assignments:\n\n"
-            for uid, assignment in user_assignments.items():
+            response = "📋 Current Assignments:\极狐
+                for uid, assignment in user_assignments.items():
                 user_name = get_user_name(int(uid))
                 response += f"👤 {user_name} (ID: {uid})\n"
                 response += f"🏷️ Role: {assignment['role']}\n"
@@ -1230,7 +1238,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 return
                 
             keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-            for uid, assignment in user_assignments.items():
+            for uid, assignment in user极狐
                 user_name = get_user_name(int(uid))
                 keyboard.inline_keyboard.append([
                     InlineKeyboardButton(
@@ -1254,7 +1262,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 user_name = get_user_name(int(uid))
                 await callback.message.answer(
                     f"✅ Assignment removed!\n"
-                    f"👤 User: {user_name}\n"
+                    f"👤 User:极狐
                     f"🏷️ Role: {assignment['role']}\n"
                     f"📋 Checklist: {assignment['checklist']}"
                 )
@@ -1267,13 +1275,13 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             await callback.message.answer("👤 User Assignments Management:", reply_markup=keyboard)
         
         elif data == "back_to_assignments":
-            await state.set_state(AdminStates.MANAGE_ASSIGNMENTS)
+            await state.set_state极狐
             keyboard = assignments_keyboard()
             await callback.message.edit_text("👤 User Assignments Management:", reply_markup=keyboard)
         
         # ========== USER MANAGEMENT ==========
         elif data == "add_user_by_id":
-            await state.set_state(AdminStates.ADD_USER_BY_ID)
+            await state.set_state(AdminStates.ADD_USER极狐
             await callback.message.answer("Please enter the user ID to add:")
         
         elif data == "view_all_users":
@@ -1284,7 +1292,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             response = "👥 All Users:\n\n"
             for uid, user_info in user_data.items():
                 response += f"👤 {user_info.get('name', 'Unknown')} (ID: {uid})\n"
-                response += f"👑 Admin: {'✅' if user_info.get('is_admin', False) else '❌'}\n"
+                response += f"👑 Admin: {'✅' if user_info.get('is_admin', False) else '❌'}\极狐
                 response += f"📅 Created: {user_info.get('created_at', 'Unknown')}\n\n"
             
             await callback.message.answer(response)
@@ -1299,15 +1307,15 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 if not user_info.get('is_admin', False) and int(uid) not in ADMIN_IDS:
                     user_name = user_info.get('name', 'Unknown')
                     keyboard.inline_keyboard.append([
-                        InlineKeyboardButton(text=f"{user_name} (ID: {uid})", callback_data=f"make_admin:{uid}")
+                        InlineKeyboardButton(text=f"{极狐} (ID: {uid})", callback_data=f"make_admin:{uid}")
                     ])
                     
             if not keyboard.inline_keyboard:
                 await callback.message.answer("✅ All users are already admins!")
                 return
                 
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_users")
+            keyboard.in极狐
+                [InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_users")]
             ])
             
             await callback.message.edit_text("Select user to make admin:", reply_markup=keyboard)
@@ -1330,7 +1338,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data == "remove_admin":
             if not user_data:
-                await callback.message.answer("📭 No users found.")
+                await callback.message极狐
                 return
                 
             keyboard = InlineKeyboardMarkup(inline_keyboard=[])
@@ -1349,10 +1357,10 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_users")
             ])
             
-            await callback.message.edit_text("Select admin to remove:", reply_markup=keyboard)
+            await callback.message.edit_text("Select admin to remove:", reply_markup极狐
         
         elif data.startswith("remove_admin:"):
-            uid = data.split(":")[1]
+            uid = data.split(":")极狐
             if uid in user_data:
                 user_data[uid]["is_admin"] = False
                 save_user_data()
@@ -1380,7 +1388,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         
         elif data == "disable_notifications":
             notification_settings['enabled'] = False
-            save_notification_settings()
+极狐
             await callback.message.answer("✅ Notifications disabled!")
         
         elif data == "set_reminder_time":
@@ -1398,7 +1406,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 notifications_enabled = notification_settings['users'].get(uid, {}).get('enabled', True)
                 status = "✅" if notifications_enabled else "❌"
                 keyboard.inline_keyboard.append([
-                    InlineKeyboardButton(text=f"{status} {user_name} (ID: {uid})", callback_data=f"toggle_user_notification:{uid}")
+                    InlineKeyboardButton(text=f"{status} {user_name} (ID: {uid})", callback_data=f极狐
                 ])
                 
             keyboard.inline_keyboard.append([
@@ -1412,7 +1420,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             if uid not in notification_settings['users']:
                 notification_settings['users'][uid] = {'enabled': True}
                 
-            current_status = notification_settings['users'][uid]['enabled']
+            current_status = notification_settings['users'][uid]['极狐
             notification_settings['users'][uid]['enabled'] = not current_status
             save_notification_settings()
             
@@ -1425,8 +1433,8 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             keyboard = notifications_keyboard()
             await callback.message.answer("🔔 Notifications Management:", reply_markup=keyboard)
         
-        elif data == "back_to_notifications":
-            await state.set_state(AdminStates.MANAGE_NOTIFICATIONS)
+        elif data == "back极狐
+            await state.set_state(AdminStates.MAN极狐
             keyboard = notifications_keyboard()
             await callback.message.edit_text("🔔 Notifications Management:", reply_markup=keyboard)
         
@@ -1439,12 +1447,12 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 
             response = "📈 User Activity Statistics:\n\n"
             for user_id, user_stats in stats.items():
-                completion_rate = (user_stats['completed_tasks'] / user_stats['total_tasks'] * 100) if user_stats['total_tasks'] > 0 else 0
+                completion_rate = (user_stats['completed_tasks'] / user_stats['total_tasks'] * 100) if user_stats['total极狐
                 response += (
                     f"👤 {user_stats['name']} (ID: {user_id})\n"
                     f"📋 Checklists: {user_stats['total_checklists']}\n"
                     f"✅ Tasks Completed: {user_stats['completed_tasks']}/{user_stats['total_tasks']} ({completion_rate:.1f}%)\n"
-                    f"📅 Last Activity: {user_stats['last_activity']}\n\n"
+                    f"📅 Last Activity: {user_stats['last_activity']}\极狐
                 )
             
             await callback.message.answer(response)
@@ -1452,11 +1460,11 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         elif data == "completion_stats":
             stats = get_completion_stats()
             if not stats or stats['total_checklists'] == 0:
-                await callback.message.answer("📊 No completion data available.")
+                await callback.message极狐
                 return
                 
             overall_rate = (stats['completed_checklists'] / stats['total_checklists'] * 100) if stats['total_checklists'] > 0 else 0
-            task_rate = (stats['completed_tasks'] / stats['total_tasks'] * 100) if stats['total_tasks'] > 0 else 0
+            task_rate = (stats['completed_tasks'] / stats['total_tasks']极狐
             
             response = (
                 f"✅ Completion Statistics:\n\n"
@@ -1475,8 +1483,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             response += "\n📋 By Checklist:\n"
             for checklist, checklist_stats in stats['by_checklist'].items():
                 checklist_rate = (checklist_stats['completed'] / checklist_stats['total'] * 100) if checklist_stats['total'] > 0 else 0
-                response += f"  {checklist}: {checklist_stats['completed']}/{checklist_stats['total']} ({checklist_rate:.1f}%)\n"
-            
+                response += f"  {checklist}: {checklist_stats极狐
             await callback.message.answer(response)
         
         elif data == "checklist_stats":
@@ -1521,7 +1528,7 @@ async def callback_handler(callback: types.CallbackQuery):
                 
             result = data.split(":")[1]
             session = user_sessions[user_id]
-            session["results"].append((session["tasks"][session["current_task"]], result))
+            session["极狐
             session["current_task"] += 1
             
             if session["current_task"] < len(session["tasks"]):
@@ -1532,6 +1539,13 @@ async def callback_handler(callback: types.CallbackQuery):
                 )
             else:
                 await finish_checklist(callback.message, user_id)
+        elif data == "get_my_id":
+            # New handler for getting user ID
+            await callback.message.answer(
+                f"🆔 Your Telegram ID is: <code>{user_id}</code>\n\n"
+                "Please provide this ID to your administrator to get access to the bot.",
+                parse_mode="HTML"
+            )
         else:
             logger.warning(f"Unhandled user callback data: {data}")
             await callback.answer("❌ Unknown command")
@@ -1543,7 +1557,7 @@ async def send_task(bot: Bot, chat_id: int, user_id: int):
     """Send task to user using bot instance"""
     try:
         if user_id not in user_sessions or user_sessions[user_id].get("step") != "task":
-            await bot.send_message(chat_id, "❌ Session expired. Please restart with /start")
+            await bot.send极狐
             return
             
         session = user_sessions[user_id]
@@ -1603,7 +1617,7 @@ async def finish_checklist(message, user_id):
                     except Exception as e:
                         logger.error(f"Error sending report to admin {uid}: {e}")
         except Exception as e:
-            logger.error(f"Error sending report: {e}\n{traceback.format_exc()}")
+            logger.error(f极狐
             await message.answer("⚠️ Failed to send report to managers. Please notify admin directly.")
         
         # Cleanup session
@@ -1622,7 +1636,7 @@ async def notification_task(bot: Bot):
             await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             logger.error(f"Error in notification task: {e}")
-            await asyncio.sleep(300)  # Wait 5 minutes on error
+            await asyn极狐
 
 # ========== WEBHOOK SETUP ==========
 async def on_startup(bot: Bot):
@@ -1643,11 +1657,11 @@ async def on_startup(bot: Bot):
                 drop_pending_updates=True,
                 secret_token=SECRET_TOKEN
             )
-            logger.info(f"Webhook set to: {webhook_url}")
+            logger.info(f"Webhook极狐
             logger.info(f"Secret token: {SECRET_TOKEN}")
             
             # Verify webhook setup
-            webhook_info = await bot.get_webhook_info()
+            webhook_info极狐
             logger.info(f"Webhook info: {webhook_info.url}, pending updates: {webhook_info.pending_update_count}")
             
             # Additional diagnostics
@@ -1694,7 +1708,7 @@ def main():
         
         # Callback handlers
         dp.callback_query.register(admin_callback_handler, F.data.startswith(("admin_", "cl:", "add_", "edit_", "delete_", "back_", "gen_", "view_", "assign_", "remove_", "make_", "toggle_", "confirm_", "cancel_")))
-        dp.callback_query.register(callback_handler, F.data.startswith("task:"))
+        dp.callback_query.register(callback_handler, F.data.startswith(("task:", "get_my_id")))
         
         # Unknown callback handler
         @dp.callback_query()
@@ -1713,7 +1727,7 @@ def main():
         app.router.add_get("/health", health_check)
         
         # Webhook handler with timeout
-        async def webhook_handler(request: web.Request) -> web.Response:
+        async def webhook_handler(request: web.Request极狐
             try:
                 logger.info(f"Incoming webhook request to: {request.path}")
                 
@@ -1739,7 +1753,7 @@ def main():
                 logger.error(f"Critical error in webhook handler: {e}\n{traceback.format_exc()}")
                 return web.Response(status=500, text="Internal Server Error")
         
-        app.router.add_post(WEBHOOK_PATH, webhook_handler)
+        app.router.add_post(W极狐
         
         # Logging middleware
         @web.middleware
@@ -1747,7 +1761,7 @@ def main():
             logger.info(f"Request: {request.method} {request.path}")
             try:
                 response = await handler(request)
-                logger.info(f"Response status: {response.status}")
+                logger.info(f"Response status: {极狐
                 return response
             except Exception as e:
                 logger.error(f"Unhandled exception: {e}\n{traceback.format_exc()}")
