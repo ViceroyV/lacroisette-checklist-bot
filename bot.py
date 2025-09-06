@@ -528,15 +528,7 @@ async def start_handler(message: types.Message):
                 "\nPlease enter the password to use the bot:"
             )
         else:
-            # Добавляем кнопку для получения ID
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🆔 Get My ID", callback_data="get_my_id")]
-            ])
-            
-            await message.answer(
-                "🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:",
-                reply_markup=keyboard
-            )
+            await message.answer("🚀 Welcome to La Croisette Checklist Bot!\nPlease enter the password:")
     except Exception as e:
         logger.error(f"Error in start_handler: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Bot error. Please try again later.")
@@ -1224,7 +1216,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 return
                 
             response = "📋 Current Assignments:\n\n"
-                for uid, assignment in user_assignments.items():
+            for uid, assignment in user_assignments.items():
                 user_name = get_user_name(int(uid))
                 response += f"👤 {user_name} (ID: {uid})\n"
                 response += f"🏷️ Role: {assignment['role']}\n"
@@ -1262,7 +1254,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 user_name = get_user_name(int(uid))
                 await callback.message.answer(
                     f"✅ Assignment removed!\n"
-                    f"👤 User:{user_name}\n"
+                    f"👤 User: {user_name}\n"
                     f"🏷️ Role: {assignment['role']}\n"
                     f"📋 Checklist: {assignment['checklist']}"
                 )
@@ -1315,7 +1307,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
                 return
                 
             keyboard.inline_keyboard.append([
-                [InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_users")]
+                InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_users")
             ])
             
             await callback.message.edit_text("Select user to make admin:", reply_markup=keyboard)
@@ -1460,11 +1452,11 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
         elif data == "completion_stats":
             stats = get_completion_stats()
             if not stats or stats['total_checklists'] == 0:
-                await callback.message.answer("📊 No completion data available."
+                await callback.message.answer("📊 No completion data available.")
                 return
                 
             overall_rate = (stats['completed_checklists'] / stats['total_checklists'] * 100) if stats['total_checklists'] > 0 else 0
-            task_rate = (stats['completed_tasks'] / stats['total_tasks']* 100) if stats['total_tasks'] > 0 else 0
+            task_rate = (stats['completed_tasks'] / stats['total_tasks'] * 100) if stats['total_tasks'] > 0 else 0
             
             response = (
                 f"✅ Completion Statistics:\n\n"
@@ -1484,6 +1476,7 @@ async def admin_callback_handler(callback: types.CallbackQuery, state: FSMContex
             for checklist, checklist_stats in stats['by_checklist'].items():
                 checklist_rate = (checklist_stats['completed'] / checklist_stats['total'] * 100) if checklist_stats['total'] > 0 else 0
                 response += f"  {checklist}: {checklist_stats['completed']}/{checklist_stats['total']} ({checklist_rate:.1f}%)\n"
+            
             await callback.message.answer(response)
         
         elif data == "checklist_stats":
@@ -1539,13 +1532,6 @@ async def callback_handler(callback: types.CallbackQuery):
                 )
             else:
                 await finish_checklist(callback.message, user_id)
-        elif data == "get_my_id":
-            # New handler for getting user ID
-            await callback.message.answer(
-                f"🆔 Your Telegram ID is: <code>{user_id}</code>\n\n"
-                "Please provide this ID to your administrator to get access to the bot.",
-                parse_mode="HTML"
-            )
         else:
             logger.warning(f"Unhandled user callback data: {data}")
             await callback.answer("❌ Unknown command")
@@ -1708,7 +1694,7 @@ def main():
         
         # Callback handlers
         dp.callback_query.register(admin_callback_handler, F.data.startswith(("admin_", "cl:", "add_", "edit_", "delete_", "back_", "gen_", "view_", "assign_", "remove_", "make_", "toggle_", "confirm_", "cancel_")))
-        dp.callback_query.register(callback_handler, F.data.startswith(("task:", "get_my_id")))
+        dp.callback_query.register(callback_handler, F.data.startswith("task:"))
         
         # Unknown callback handler
         @dp.callback_query()
